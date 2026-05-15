@@ -1,0 +1,35 @@
+import django.db.models.deletion
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+    initial = True
+
+    dependencies = [
+        ("dialogue", "0001_initial"),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name="VocabularyItem",
+            fields=[
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("phrase", models.CharField(max_length=255)),
+                ("translation", models.CharField(blank=True, max_length=255)),
+                ("context", models.TextField(blank=True)),
+                ("user_note", models.TextField(blank=True)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "source_message",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="vocabulary_items",
+                        to="dialogue.message",
+                    ),
+                ),
+            ],
+            options={"ordering": ["-created_at"]},
+        ),
+    ]

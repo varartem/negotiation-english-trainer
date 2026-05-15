@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:12.9
+    container_name: negotiation_trainer_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: negotiation_trainer
+      POSTGRES_USER: negotiation_user
+      POSTGRES_PASSWORD: negotiation_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:

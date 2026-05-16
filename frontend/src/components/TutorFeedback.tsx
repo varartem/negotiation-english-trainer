@@ -77,7 +77,7 @@ export default function TutorFeedback({ evaluation, idealAnswer, onRetry, onShow
           </div>
         </>
       ) : (
-        <p className="empty-state">Отправьте первую реплику, чтобы получить оценку.</p>
+        <p className="empty-state">Пока нет оценки.</p>
       )}
 
       <div className="button-row">
@@ -103,7 +103,10 @@ function Score({ label, value }: { label: string; value: number }) {
   return (
     <div className="score-card">
       <span>{label}</span>
-      <strong>{value}/10</strong>
+      <strong>
+        {value}
+        <small>/10</small>
+      </strong>
     </div>
   );
 }

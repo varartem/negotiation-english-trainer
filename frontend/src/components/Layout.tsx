@@ -8,9 +8,11 @@ export default function Layout({ children }: LayoutProps) {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div>
-          <div className="eyebrow">Тренажёр переговорного английского</div>
-          <h1>Тренируйте деловые переговоры с мгновенной обратной связью</h1>
+        <div className="brand-lockup">
+          <span className="brand-mark">AI</span>
+          <div>
+            <h1>Negotiation English</h1>
+          </div>
         </div>
       </header>
       <main>{children}</main>

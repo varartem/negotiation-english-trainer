@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import ReactFlow, { Background, Controls, type Edge, type Node } from "reactflow";
+import ReactFlow, { Background, type Edge, type Node } from "reactflow";
 import type { GraphJson, GraphNode } from "../types";
 
 interface GraphViewProps {
@@ -53,6 +53,7 @@ export default function GraphView({ graph, currentNodeId }: GraphViewProps) {
         className: [
           "flow-node",
           isCurrent ? "flow-node-current" : "",
+          !isCurrent ? "flow-node-muted" : "",
           isSuccess ? "flow-node-success" : "",
           isDeadEnd ? "flow-node-dead" : "",
         ].join(" "),
@@ -67,7 +68,10 @@ export default function GraphView({ graph, currentNodeId }: GraphViewProps) {
       target: edge.target,
       animated: edge.source === currentNodeId,
       type: "smoothstep",
-      style: { strokeWidth: 2 },
+      style: {
+        strokeWidth: edge.source === currentNodeId ? 1.8 : 1.2,
+        stroke: edge.source === currentNodeId ? "#8fb7ad" : "#d9dee6",
+      },
     }));
   }, [graph.edges, currentNodeId]);
 
@@ -84,40 +88,38 @@ export default function GraphView({ graph, currentNodeId }: GraphViewProps) {
           fitViewOptions={{ padding: 0.08 }}
           minZoom={0.4}
           maxZoom={1.4}
+          nodesConnectable={false}
+          nodesDraggable={false}
+          proOptions={{ hideAttribution: true }}
           onNodeClick={(_, node) => {
             setSelectedNode(graph.nodes.find((item) => item.id === node.id) ?? null);
           }}
         >
-          <Controls />
-          <Background gap={18} size={1} />
+          <Background color="#eef1f4" gap={24} size={0.8} />
         </ReactFlow>
       </div>
 
-      <div className="node-details">
-        {selectedNode ? (
-          <>
-            <h3>{displayNodeLabel(selectedNode)}</h3>
-            <p>{selectedNode.tutor_task}</p>
-            <dl>
-              <div>
-                <dt>Настрой</dt>
-                <dd>{selectedNode.counterparty_mood}</dd>
-              </div>
-              <div>
-                <dt>Намерение</dt>
-                <dd>{selectedNode.counterparty_intent}</dd>
-              </div>
-            </dl>
-            <ul>
-              {selectedNode.success_criteria.map((criterion) => (
-                <li key={criterion}>{criterion}</li>
-              ))}
-            </ul>
-          </>
-        ) : (
-          <p>Нажмите на узел, чтобы увидеть задачу, настрой, намерение и критерии успеха.</p>
-        )}
-      </div>
+      {selectedNode ? (
+        <div className="node-details">
+          <h3>{displayNodeLabel(selectedNode)}</h3>
+          <p>{selectedNode.tutor_task}</p>
+          <dl>
+            <div>
+              <dt>Настрой</dt>
+              <dd>{selectedNode.counterparty_mood}</dd>
+            </div>
+            <div>
+              <dt>Намерение</dt>
+              <dd>{selectedNode.counterparty_intent}</dd>
+            </div>
+          </dl>
+          <ul>
+            {selectedNode.success_criteria.map((criterion) => (
+              <li key={criterion}>{criterion}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -166,11 +166,10 @@ export default function ChatPanel({
   }
 
   return (
-    <section className="panel chat-panel">
-      <div className="panel-header">
-        <h2>Диалог</h2>
-        <button className="icon-button" type="button" title="Обновить сессию" onClick={onRefresh}>
-          ↻
+    <section className="chat-panel">
+      <div className="conversation-toolbar">
+        <button className="icon-button ghost-button" type="button" title="Обновить сессию" onClick={onRefresh}>
+          <RefreshIcon />
         </button>
       </div>
 
@@ -179,11 +178,11 @@ export default function ChatPanel({
           <article
             className={`message message-${message.role}`}
             key={message.id}
+            aria-label={roleLabels[message.role] ?? message.role}
             onMouseUp={() => captureSelection(message)}
           >
-            <div className="message-heading">
-              <span>{roleLabels[message.role] ?? message.role}</span>
-              {message.role !== "user" && !message.audio_url ? (
+            {message.role !== "user" && !message.audio_url ? (
+              <div className="message-actions">
                 <button
                   className="mini-icon-button"
                   type="button"
@@ -191,10 +190,10 @@ export default function ChatPanel({
                   disabled={synthesizingIds.has(message.id)}
                   onClick={() => synthesizeMessage(message.id)}
                 >
-                  ▶
+                  <PlayIcon />
                 </button>
-              ) : null}
-            </div>
+              </div>
+            ) : null}
             <p>{message.content}</p>
             {message.audio_url ? (
               <audio className="message-audio" controls preload="none" src={resolveAudioUrl(message.audio_url)} />
@@ -206,34 +205,82 @@ export default function ChatPanel({
       {voiceError ? <p className="error-box compact-error">{voiceError}</p> : null}
 
       <div className="selection-row">
-        <span>{selected ? selected.text : "Выделите фразу в диалоге, чтобы сохранить её"}</span>
+        <span>{selected ? selected.text : "Выделите фразу"}</span>
         <button className="secondary-button" type="button" onClick={addSelectedPhrase} disabled={!selected}>
-          Добавить фразу
+          Добавить
         </button>
       </div>
 
       <form className="message-form" onSubmit={handleSubmit}>
-        <textarea
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          placeholder="Введите вашу реплику на английском..."
-          rows={3}
-          disabled={disabled || isTranscribing}
-        />
-        <button
-          className={`icon-button ${isRecording ? "recording" : ""}`}
-          type="button"
-          title={isRecording ? "Остановить запись" : "Записать голос"}
-          onClick={toggleRecording}
-          disabled={disabled || isTranscribing}
-        >
-          {isRecording ? "■" : "●"}
-        </button>
-        <button className="primary-button" type="submit" disabled={!canSend}>
-          {isTranscribing ? "Распознаю" : "Отправить"}
-        </button>
+        <div className="composer-box">
+          <textarea
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            placeholder="Ответ на английском..."
+            rows={3}
+            disabled={disabled || isTranscribing}
+          />
+          <div className="composer-actions">
+            {isTranscribing || isRecording ? (
+              <span className="composer-state">{isTranscribing ? "Распознавание..." : "Запись"}</span>
+            ) : null}
+            <button
+              className={`voice-button ${isRecording ? "recording" : ""}`}
+              type="button"
+              title={isRecording ? "Остановить запись" : "Записать голос"}
+              onClick={toggleRecording}
+              disabled={disabled || isTranscribing}
+            >
+              {isRecording ? <StopIcon /> : <MicIcon />}
+            </button>
+            <button className="send-button" type="submit" disabled={!canSend} aria-label="Отправить реплику">
+              <SendIcon />
+            </button>
+          </div>
+        </div>
       </form>
     </section>
+  );
+}
+
+function RefreshIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="M20 6v5h-5M4 18v-5h5M19 11a7 7 0 0 0-12.3-4.5M5 13a7 7 0 0 0 12.3 4.5" />
+    </svg>
+  );
+}
+
+function PlayIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="M8 5v14l11-7-11-7z" />
+    </svg>
+  );
+}
+
+function MicIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="M12 4a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V7a3 3 0 0 0-3-3z" />
+      <path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6" />
+    </svg>
+  );
+}
+
+function StopIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="M8 8h8v8H8z" />
+    </svg>
+  );
+}
+
+function SendIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="M12 19V5M6 11l6-6 6 6" />
+    </svg>
   );
 }
 

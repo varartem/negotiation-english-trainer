@@ -86,6 +86,30 @@ button svg {
   padding: 0 52px;
 }
 
+.app-state {
+  display: grid;
+  min-height: calc(100vh - 56px);
+  place-items: center;
+  padding: 24px;
+  text-align: center;
+}
+
+.app-state div {
+  max-width: 520px;
+}
+
+.app-state strong {
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 620;
+}
+
+.app-state p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
 .app-sidebar {
   position: fixed;
   z-index: 60;
@@ -114,9 +138,11 @@ button svg {
 .sidebar-content {
   display: flex;
   width: var(--sidebar-expanded);
-  min-height: 100%;
+  height: 100%;
+  min-height: 0;
   flex-direction: column;
   gap: 8px;
+  overflow: hidden;
   padding: 14px 8px;
 }
 
@@ -247,13 +273,16 @@ button svg {
 .sidebar-history {
   display: flex;
   min-height: 0;
-  flex: 1;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 4px;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   opacity: 0;
-  padding-top: 10px;
+  padding: 10px 0 8px;
   pointer-events: none;
+  scrollbar-width: thin;
   transition:
     opacity 170ms ease,
     transform 210ms ease;

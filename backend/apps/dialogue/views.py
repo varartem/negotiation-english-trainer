@@ -9,15 +9,31 @@ from apps.scenarios.models import Scenario
 from .models import DialogueSession, Evaluation, Message
 from .serializers import (
     DialogueSessionSerializer,
+    DialogueSessionSummarySerializer,
     EvaluationSerializer,
     MessageSerializer,
     UserMessageCreateSerializer,
 )
 
 
+SESSION_QUERYSET = DialogueSession.objects.select_related("scenario", "graph").prefetch_related("messages")
+
+
+class SessionListView(generics.ListAPIView):
+    queryset = DialogueSession.objects.select_related("scenario").order_by("-updated_at")
+    serializer_class = DialogueSessionSummarySerializer
+
+
 class SessionDetailView(generics.RetrieveAPIView):
-    queryset = DialogueSession.objects.select_related("scenario", "graph").prefetch_related("messages")
+    queryset = SESSION_QUERYSET
     serializer_class = DialogueSessionSerializer
+
+
+class SessionPublicDetailView(generics.RetrieveAPIView):
+    queryset = SESSION_QUERYSET
+    serializer_class = DialogueSessionSerializer
+    lookup_field = "public_id"
+    lookup_url_kwarg = "public_id"
 
 
 @api_view(["POST"])

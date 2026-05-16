@@ -1,3 +1,5 @@
+import uuid
+
 from django.db import models
 
 
@@ -14,6 +16,7 @@ class DialogueSession(models.Model):
         (STATUS_ABANDONED, "Abandoned"),
     ]
 
+    public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     scenario = models.ForeignKey(
         "scenarios.Scenario",
         related_name="sessions",

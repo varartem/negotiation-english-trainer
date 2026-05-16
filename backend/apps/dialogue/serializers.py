@@ -53,6 +53,7 @@ class DialogueSessionSerializer(serializers.ModelSerializer):
         model = DialogueSession
         fields = [
             "id",
+            "public_id",
             "scenario",
             "graph",
             "current_node_id",
@@ -61,7 +62,34 @@ class DialogueSessionSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "scenario", "graph", "current_node_id", "status", "messages", "created_at", "updated_at"]
+        read_only_fields = [
+            "id",
+            "public_id",
+            "scenario",
+            "graph",
+            "current_node_id",
+            "status",
+            "messages",
+            "created_at",
+            "updated_at",
+        ]
+
+
+class DialogueSessionSummarySerializer(serializers.ModelSerializer):
+    scenario = ScenarioSerializer(read_only=True)
+
+    class Meta:
+        model = DialogueSession
+        fields = [
+            "id",
+            "public_id",
+            "scenario",
+            "current_node_id",
+            "status",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = fields
 
 
 class UserMessageCreateSerializer(serializers.Serializer):

@@ -1,5 +1,6 @@
 import type {
   DialogueSession,
+  DialogueSessionSummary,
   Difficulty,
   Message,
   NegotiationGraph,
@@ -72,8 +73,16 @@ export const api = {
     });
   },
 
+  listSessions() {
+    return request<DialogueSessionSummary[]>("/sessions/");
+  },
+
   getSession(sessionId: number) {
     return request<DialogueSession>(`/sessions/${sessionId}/`);
+  },
+
+  getSessionByPublicId(publicId: string) {
+    return request<DialogueSession>(`/sessions/by-public-id/${publicId}/`);
   },
 
   sendMessage(sessionId: number, content: string) {

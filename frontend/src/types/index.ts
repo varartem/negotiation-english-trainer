@@ -85,11 +85,22 @@ export interface Message {
 
 export interface DialogueSession {
   id: number;
+  public_id: string;
   scenario: Scenario;
   graph: NegotiationGraph;
   current_node_id: string;
   status: SessionStatus;
   messages: Message[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DialogueSessionSummary {
+  id: number;
+  public_id: string;
+  scenario: Scenario;
+  current_node_id: string;
+  status: SessionStatus;
   created_at: string;
   updated_at: string;
 }

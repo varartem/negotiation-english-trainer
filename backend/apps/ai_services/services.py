@@ -59,6 +59,25 @@ class LLMService:
     def generate_counterparty_reply(self, session, evaluation: dict[str, Any]) -> str:
         return self._provider.generate_counterparty_reply(session=session, evaluation=evaluation)
 
+    def stream_counterparty_reply(
+        self,
+        session,
+        evaluation: dict[str, Any],
+        on_delta: Callable[[str], None],
+    ) -> str:
+        provider = self._provider
+        if hasattr(provider, "stream_counterparty_reply"):
+            return provider.stream_counterparty_reply(
+                session=session,
+                evaluation=evaluation,
+                on_delta=on_delta,
+            )
+
+        reply = provider.generate_counterparty_reply(session=session, evaluation=evaluation)
+        if reply:
+            on_delta(reply)
+        return reply
+
     def generate_ideal_answer(self, session) -> str:
         return self._provider.generate_ideal_answer(session=session)
 

@@ -1,8 +1,10 @@
+import time
+
 from rest_framework import generics, status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from apps.ai_services.progress import stream_progress_response
+from apps.ai_services.progress import stream_event_response, stream_progress_response
 from apps.ai_services.services import LLMService, TTSService
 from apps.negotiation_graph.models import NegotiationGraph
 from apps.scenarios.models import Scenario
@@ -18,6 +20,10 @@ from .serializers import (
 
 
 SESSION_QUERYSET = DialogueSession.objects.select_related("scenario", "graph").prefetch_related("messages")
+
+
+def _log_dialogue_event(session_id: int, message: str) -> None:
+    print(f"[dialogue:{session_id}] {message}", flush=True)
 
 
 class SessionListView(generics.ListAPIView):
@@ -70,52 +76,50 @@ def send_message(request, session_id: int):
     serializer = UserMessageCreateSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
 
-    user_message = Message.objects.create(
-        session=session,
-        role=Message.ROLE_USER,
-        node_id=session.current_node_id,
-        content=serializer.validated_data["content"],
-    )
+    payload = create_dialogue_turn(session, serializer.validated_data["content"])
+    return Response(payload, status=status.HTTP_201_CREATED)
 
-    llm = LLMService()
-    evaluation_data = llm.evaluate_user_reply(session=session, message_content=user_message.content)
-    next_node_id = choose_next_node_id(session, evaluation_data)
-    session.current_node_id = next_node_id
-    session.status = status_for_node(session.graph.graph_json, next_node_id)
-    session.save(update_fields=["current_node_id", "status", "updated_at"])
 
-    evaluation = Evaluation.objects.create(
-        message=user_message,
-        general_sentiment=evaluation_data["general_sentiment"],
-        emotion=evaluation_data["emotion"],
-        pressure_level=evaluation_data["pressure_level"],
-        negotiation_move=evaluation_data["negotiation_move"],
-        strategy_score=evaluation_data["strategy_score"],
-        english_score=evaluation_data["english_score"],
-        stage_fit_score=evaluation_data["stage_fit_score"],
-        feedback_json={
-            "feedback": evaluation_data["feedback"],
-            "language_feedback": evaluation_data["language_feedback"],
-            "strategy_feedback": evaluation_data["strategy_feedback"],
-        },
-        better_version=evaluation_data["better_version"],
-    )
-    assistant_message = Message.objects.create(
-        session=session,
-        role=Message.ROLE_ASSISTANT,
-        node_id=session.current_node_id,
-        content=llm.generate_counterparty_reply(session=session, evaluation=evaluation_data),
-    )
+@api_view(["POST"])
+def send_message_progress(request, session_id: int):
+    serializer = UserMessageCreateSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    content = serializer.validated_data["content"]
+    request_started_at = time.perf_counter()
+    _log_dialogue_event(session_id, f"message request accepted chars={len(content)}")
 
-    return Response(
-        {
-            "session": DialogueSessionSerializer(session).data,
-            "user_message": MessageSerializer(user_message).data,
-            "evaluation": EvaluationSerializer(evaluation).data,
-            "assistant_message": MessageSerializer(assistant_message).data,
-        },
-        status=status.HTTP_201_CREATED,
-    )
+    def worker(emit):
+        _log_dialogue_event(session_id, "worker started")
+        emit({"type": "progress", "progress": 8, "stage": "queued", "detail": "Реплика поставлена в очередь."})
+        session = DialogueSession.objects.select_related("scenario", "graph").get(pk=session_id)
+        _log_dialogue_event(session_id, "session loaded")
+        delta_count = 0
+
+        def emit_delta(delta: str) -> None:
+            nonlocal delta_count
+            if delta_count == 0:
+                _log_dialogue_event(
+                    session_id,
+                    f"first assistant delta after {time.perf_counter() - request_started_at:.2f}s",
+                )
+            delta_count += 1
+            emit(
+                {
+                    "type": "assistant_delta",
+                    "progress": 88,
+                    "stage": "counterparty_reply",
+                    "delta": delta,
+                }
+            )
+
+        return create_dialogue_turn(
+            session,
+            content,
+            emit_event=emit,
+            emit_assistant_delta=emit_delta,
+        )
+
+    return stream_event_response(worker)
 
 
 @api_view(["POST"])
@@ -174,6 +178,106 @@ def synthesize_message_progress(request, message_id: int):
         return {"message": MessageSerializer(message).data}
 
     return stream_progress_response(worker)
+
+
+def create_dialogue_turn(
+    session: DialogueSession,
+    content: str,
+    *,
+    emit_event=None,
+    emit_assistant_delta=None,
+) -> dict:
+    def emit_progress(progress: int, stage: str, detail: str) -> None:
+        if emit_event is not None:
+            emit_event(
+                {
+                    "type": "progress",
+                    "progress": progress,
+                    "stage": stage,
+                    "detail": detail,
+                }
+            )
+
+    started_at = time.perf_counter()
+    _log_dialogue_event(session.id, f"turn started chars={len(content)}")
+    emit_progress(14, "saving_user_message", "Сохраняем вашу реплику.")
+    user_message = Message.objects.create(
+        session=session,
+        role=Message.ROLE_USER,
+        node_id=session.current_node_id,
+        content=content,
+    )
+    _log_dialogue_event(session.id, f"user message saved id={user_message.id}")
+
+    llm = LLMService()
+    emit_progress(32, "evaluating_reply", "Оцениваем реплику и выбираем следующий этап.")
+    phase_started_at = time.perf_counter()
+    _log_dialogue_event(session.id, "evaluation start")
+    evaluation_data = llm.evaluate_user_reply(session=session, message_content=user_message.content)
+    _log_dialogue_event(
+        session.id,
+        f"evaluation done in {time.perf_counter() - phase_started_at:.2f}s "
+        f"strategy={evaluation_data['strategy_score']} english={evaluation_data['english_score']} "
+        f"stage_fit={evaluation_data['stage_fit_score']}",
+    )
+    next_node_id = choose_next_node_id(session, evaluation_data)
+    _log_dialogue_event(session.id, f"next node selected: {session.current_node_id} -> {next_node_id}")
+    session.current_node_id = next_node_id
+    session.status = status_for_node(session.graph.graph_json, next_node_id)
+    session.save(update_fields=["current_node_id", "status", "updated_at"])
+    _log_dialogue_event(session.id, f"session state saved status={session.status}")
+
+    evaluation = Evaluation.objects.create(
+        message=user_message,
+        general_sentiment=evaluation_data["general_sentiment"],
+        emotion=evaluation_data["emotion"],
+        pressure_level=evaluation_data["pressure_level"],
+        negotiation_move=evaluation_data["negotiation_move"],
+        strategy_score=evaluation_data["strategy_score"],
+        english_score=evaluation_data["english_score"],
+        stage_fit_score=evaluation_data["stage_fit_score"],
+        feedback_json={
+            "feedback": evaluation_data["feedback"],
+            "language_feedback": evaluation_data["language_feedback"],
+            "strategy_feedback": evaluation_data["strategy_feedback"],
+        },
+        better_version=evaluation_data["better_version"],
+    )
+    _log_dialogue_event(session.id, f"evaluation saved id={evaluation.id}")
+
+    emit_progress(72, "counterparty_reply", "Собеседник отвечает.")
+    phase_started_at = time.perf_counter()
+    _log_dialogue_event(session.id, "counterparty generation start")
+    if emit_assistant_delta is None:
+        assistant_content = llm.generate_counterparty_reply(session=session, evaluation=evaluation_data)
+    else:
+        assistant_content = llm.stream_counterparty_reply(
+            session=session,
+            evaluation=evaluation_data,
+            on_delta=emit_assistant_delta,
+        )
+    _log_dialogue_event(
+        session.id,
+        f"counterparty generation done in {time.perf_counter() - phase_started_at:.2f}s "
+        f"chars={len(assistant_content)}",
+    )
+
+    assistant_message = Message.objects.create(
+        session=session,
+        role=Message.ROLE_ASSISTANT,
+        node_id=session.current_node_id,
+        content=assistant_content,
+    )
+    _log_dialogue_event(session.id, f"assistant message saved id={assistant_message.id}")
+
+    emit_progress(96, "saving_counterparty_reply", "Сохраняем ответ собеседника.")
+    _log_dialogue_event(session.id, f"turn done in {time.perf_counter() - started_at:.2f}s")
+    return {
+        "session": DialogueSessionSerializer(session).data,
+        "user_message": MessageSerializer(user_message).data,
+        "evaluation": EvaluationSerializer(evaluation).data,
+        "assistant_message": MessageSerializer(assistant_message).data,
+    }
 
 
 def choose_next_node_id(session: DialogueSession, evaluation_data: dict) -> str:

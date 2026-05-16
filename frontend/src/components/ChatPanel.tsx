@@ -7,6 +7,8 @@ import type { Message } from "../types";
 interface ChatPanelProps {
   messages: Message[];
   disabled: boolean;
+  isAssistantThinking?: boolean;
+  assistantThinkingLabel?: string;
   onSend: (content: string) => void;
   onAddVocabulary: (phrase: string, context: string, sourceMessageId?: number) => void;
   onTranscribeAudio: (audio: Blob, onProgress?: ModelProgressHandler) => Promise<string>;
@@ -33,6 +35,8 @@ const roleLabels: Record<string, string> = {
 export default function ChatPanel({
   messages,
   disabled,
+  isAssistantThinking = false,
+  assistantThinkingLabel = "Собеседник думает",
   onSend,
   onAddVocabulary,
   onTranscribeAudio,
@@ -58,6 +62,10 @@ export default function ChatPanel({
   const previousMessagesCountRef = useRef(messages.length);
 
   const canSend = useMemo(() => draft.trim().length > 0 && !disabled && !isTranscribing, [draft, disabled, isTranscribing]);
+  const lastMessageScrollKey = useMemo(() => {
+    const lastMessage = messages[messages.length - 1];
+    return `${lastMessage?.id ?? "empty"}:${lastMessage?.content.length ?? 0}`;
+  }, [messages]);
 
   useEffect(() => {
     function handleSelectionChange() {
@@ -73,15 +81,16 @@ export default function ChatPanel({
   useEffect(() => {
     const messagesElement = messagesRef.current;
     const previousMessagesCount = previousMessagesCountRef.current;
+    const hasNewMessage = messages.length > previousMessagesCount;
     previousMessagesCountRef.current = messages.length;
     if (!messagesElement) {
       return;
     }
-    if (messages.length <= previousMessagesCount) {
-      return;
-    }
-    messagesElement.scrollTo({ top: messagesElement.scrollHeight, behavior: "smooth" });
-  }, [messages.length]);
+    messagesElement.scrollTo({
+      top: messagesElement.scrollHeight,
+      behavior: hasNewMessage ? "smooth" : "auto",
+    });
+  }, [lastMessageScrollKey, messages.length]);
 
   useEffect(() => {
     return () => {
@@ -413,6 +422,13 @@ export default function ChatPanel({
             <span>{Math.round(transcriptionProgress)}%</span>
             <div className="transcription-progress-track">
               <span style={{ width: `${Math.max(4, transcriptionProgress)}%` }} />
+            </div>
+          </div>
+        ) : isAssistantThinking ? (
+          <div className="transcription-progress transcription-progress-indeterminate" aria-live="polite">
+            <span>{assistantThinkingLabel}</span>
+            <div className="transcription-progress-track">
+              <span />
             </div>
           </div>
         ) : null}

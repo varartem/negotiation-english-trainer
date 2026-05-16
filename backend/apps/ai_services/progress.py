@@ -12,20 +12,32 @@ from django.http import StreamingHttpResponse
 
 ProgressCallback = Callable[[int, str, str], None]
 ProgressWorker = Callable[[ProgressCallback], dict[str, Any]]
+EventEmitter = Callable[[dict[str, Any]], None]
+EventWorker = Callable[[EventEmitter], dict[str, Any]]
 
 
 def stream_progress_response(worker: ProgressWorker) -> StreamingHttpResponse:
+    def event_worker(emit_event: EventEmitter) -> dict[str, Any]:
+        def emit(progress: int, stage: str, detail: str = "") -> None:
+            emit_event(
+                {
+                    "type": "progress",
+                    "progress": max(0, min(100, progress)),
+                    "stage": stage,
+                    "detail": detail,
+                }
+            )
+
+        return worker(emit)
+
+    return stream_event_response(event_worker)
+
+
+def stream_event_response(worker: EventWorker) -> StreamingHttpResponse:
     events: queue.Queue[dict[str, Any]] = queue.Queue()
 
-    def emit(progress: int, stage: str, detail: str = "") -> None:
-        events.put(
-            {
-                "type": "progress",
-                "progress": max(0, min(100, progress)),
-                "stage": stage,
-                "detail": detail,
-            }
-        )
+    def emit(event: dict[str, Any]) -> None:
+        events.put(event)
 
     def run_worker() -> None:
         close_old_connections()

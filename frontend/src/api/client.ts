@@ -12,10 +12,11 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:800
 const API_ORIGIN = API_BASE_URL.replace(/\/api$/, "");
 
 export interface ModelProgressEvent<TPayload = unknown> {
-  type: "progress" | "done" | "error";
+  type: "progress" | "done" | "error" | "assistant_delta";
   progress: number;
   stage: string;
   detail?: string;
+  delta?: string;
   message?: string;
   payload?: TPayload;
 }
@@ -168,11 +169,15 @@ export const api = {
     return request<DialogueSession>(`/sessions/by-public-id/${publicId}/`);
   },
 
-  sendMessage(sessionId: number, content: string) {
-    return request<{ session: DialogueSession }>(`/sessions/${sessionId}/messages/`, {
-      method: "POST",
-      body: JSON.stringify({ content }),
-    });
+  sendMessage(sessionId: number, content: string, onProgress?: ModelProgressHandler) {
+    return streamRequest<{ session: DialogueSession }>(
+      `/sessions/${sessionId}/messages/progress/`,
+      {
+        method: "POST",
+        body: JSON.stringify({ content }),
+      },
+      onProgress,
+    );
   },
 
   transcribeAudio(audio: Blob, onProgress?: ModelProgressHandler) {

@@ -14,6 +14,8 @@ interface TrainingPageProps {
 export default function TrainingPage({ session, onSessionChange }: TrainingPageProps) {
   const [idealAnswer, setIdealAnswer] = useState<string>("");
   const [isSending, setIsSending] = useState(false);
+  const [isAssistantStreaming, setIsAssistantStreaming] = useState(false);
+  const [assistantThinkingLabel, setAssistantThinkingLabel] = useState("Собеседник думает");
   const [error, setError] = useState<string | null>(null);
   const [isContextIntroVisible, setIsContextIntroVisible] = useState(true);
 
@@ -38,8 +40,9 @@ export default function TrainingPage({ session, onSessionChange }: TrainingPageP
   }, [session.id]);
 
   async function handleSend(content: string) {
+    const temporaryId = Date.now();
     const optimisticMessage: Message = {
-      id: -Date.now(),
+      id: -temporaryId,
       session: session.id,
       role: "user",
       node_id: session.current_node_id,
@@ -47,15 +50,85 @@ export default function TrainingPage({ session, onSessionChange }: TrainingPageP
       audio_url: "",
       created_at: new Date().toISOString(),
     };
+    const streamingAssistantMessage: Message = {
+      id: -temporaryId - 1,
+      session: session.id,
+      role: "assistant",
+      node_id: session.current_node_id,
+      content: "",
+      audio_url: "",
+      created_at: new Date().toISOString(),
+    };
 
-    onSessionChange({
+    let workingSession: DialogueSession = {
       ...session,
       messages: [...session.messages, optimisticMessage],
-    });
+    };
+    let streamedAssistantContent = "";
+    let hasStreamingAssistant = false;
+    let assistantDeltaEvents = 0;
+    const startedAt = performance.now();
+    const elapsedSeconds = () => ((performance.now() - startedAt) / 1000).toFixed(2);
+
+    console.info(`[dialogue] send start session=${session.id} chars=${content.length}`);
+    onSessionChange(workingSession);
     setIsSending(true);
+    setIsAssistantStreaming(false);
+    setAssistantThinkingLabel("Собеседник думает");
     setError(null);
     try {
-      const response = await api.sendMessage(session.id, content);
+      const response = await api.sendMessage(session.id, content, (event) => {
+        if (event.type === "progress") {
+          const label = event.detail || event.stage;
+          setAssistantThinkingLabel(label);
+          console.info(`[dialogue] ${event.stage} ${event.progress}% +${elapsedSeconds()}s`, label);
+          return;
+        }
+
+        if (event.type === "done") {
+          console.info(
+            `[dialogue] done +${elapsedSeconds()}s assistant_delta_events=${assistantDeltaEvents}`,
+          );
+          return;
+        }
+
+        if (event.type === "error") {
+          console.error(`[dialogue] error +${elapsedSeconds()}s`, event.message);
+          return;
+        }
+
+        if (event.type !== "assistant_delta" || !event.delta) {
+          return;
+        }
+
+        assistantDeltaEvents += 1;
+        if (assistantDeltaEvents === 1) {
+          console.info(`[dialogue] assistant text started +${elapsedSeconds()}s`);
+        }
+        console.debug(`[dialogue] assistant_delta #${assistantDeltaEvents}`, event.delta);
+        streamedAssistantContent += event.delta;
+        setIsAssistantStreaming(true);
+        if (hasStreamingAssistant) {
+          workingSession = {
+            ...workingSession,
+            messages: workingSession.messages.map((message) =>
+              message.id === streamingAssistantMessage.id
+                ? { ...message, content: streamedAssistantContent }
+                : message,
+            ),
+          };
+        } else {
+          hasStreamingAssistant = true;
+          workingSession = {
+            ...workingSession,
+            messages: [
+              ...workingSession.messages,
+              { ...streamingAssistantMessage, content: streamedAssistantContent },
+            ],
+          };
+        }
+        onSessionChange(workingSession);
+      });
       onSessionChange(response.session);
       setIdealAnswer("");
     } catch (error) {
@@ -63,6 +136,8 @@ export default function TrainingPage({ session, onSessionChange }: TrainingPageP
       setError(error instanceof Error ? error.message : "Не удалось отправить реплику");
     } finally {
       setIsSending(false);
+      setIsAssistantStreaming(false);
+      setAssistantThinkingLabel("Собеседник думает");
     }
   }
 
@@ -158,6 +233,8 @@ export default function TrainingPage({ session, onSessionChange }: TrainingPageP
         <ChatPanel
           messages={session.messages}
           disabled={isSending || session.status !== "active"}
+          isAssistantThinking={isSending && !isAssistantStreaming}
+          assistantThinkingLabel={assistantThinkingLabel}
           onSend={handleSend}
           onAddVocabulary={handleAddVocabulary}
           onTranscribeAudio={handleTranscribeAudio}

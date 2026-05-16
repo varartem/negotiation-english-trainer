@@ -1017,6 +1017,21 @@ button svg {
   transition: width 180ms ease;
 }
 
+.transcription-progress-indeterminate .transcription-progress-track span {
+  width: 38%;
+  animation: model-progress-sweep 1.35s ease-in-out infinite;
+}
+
+@keyframes model-progress-sweep {
+  0% {
+    transform: translateX(-120%);
+  }
+
+  100% {
+    transform: translateX(270%);
+  }
+}
+
 .composer-box textarea {
   min-height: 44px;
   border: 0;

@@ -246,6 +246,12 @@ class MockLLMProvider:
         }
         return replies.get(node_type, "Please continue.")
 
+    def stream_counterparty_reply(self, session, evaluation: dict[str, Any], on_delta) -> str:
+        reply = self.generate_counterparty_reply(session=session, evaluation=evaluation)
+        for index, chunk in enumerate(reply.split(" ")):
+            on_delta(chunk if index == 0 else f" {chunk}")
+        return reply
+
     def generate_ideal_answer(self, session) -> str:
         node_type = self._current_node(session).get("type")
         answers = {

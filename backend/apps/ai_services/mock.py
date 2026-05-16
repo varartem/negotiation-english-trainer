@@ -267,10 +267,18 @@ class MockLLMProvider:
 
 
 class MockSTTProvider:
-    def transcribe(self, _audio_file, **_kwargs) -> str:
+    def transcribe(self, _audio_file, **kwargs) -> str:
+        progress_callback = kwargs.get("progress_callback")
+        if progress_callback:
+            progress_callback(35, "mock_transcribing", "Mock STT обрабатывает запись.")
+            progress_callback(92, "normalizing_text", "Mock STT готовит текст.")
         return ""
 
 
 class MockTTSProvider:
-    def synthesize(self, _text: str, **_kwargs) -> str:
+    def synthesize(self, _text: str, **kwargs) -> str:
+        progress_callback = kwargs.get("progress_callback")
+        if progress_callback:
+            progress_callback(35, "mock_synthesizing", "Mock TTS создает аудио.")
+            progress_callback(92, "finalizing_audio", "Mock TTS готовит файл.")
         return ""

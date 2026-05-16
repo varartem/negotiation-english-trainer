@@ -2,6 +2,7 @@ from rest_framework import generics, status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
+from apps.ai_services.progress import stream_progress_response
 from apps.ai_services.services import LLMService, TTSService
 from apps.negotiation_graph.models import NegotiationGraph
 from apps.scenarios.models import Scenario
@@ -152,6 +153,27 @@ def synthesize_message(request, message_id: int):
     message.audio_url = TTSService().synthesize(message.content, file_prefix=file_prefix)
     message.save(update_fields=["audio_url"])
     return Response({"message": MessageSerializer(message).data})
+
+
+@api_view(["POST"])
+def synthesize_message_progress(request, message_id: int):
+    def worker(emit):
+        emit(4, "queued", "Запрос TTS поставлен в очередь.")
+        message = Message.objects.get(pk=message_id)
+        if message.audio_url:
+            emit(100, "cached_audio", "Аудио уже готово.")
+            return {"message": MessageSerializer(message).data}
+
+        file_prefix = f"message_{message.id}_{message.created_at.strftime('%Y%m%d%H%M%S')}"
+        message.audio_url = TTSService().synthesize(
+            message.content,
+            file_prefix=file_prefix,
+            progress_callback=emit,
+        )
+        message.save(update_fields=["audio_url"])
+        return {"message": MessageSerializer(message).data}
+
+    return stream_progress_response(worker)
 
 
 def choose_next_node_id(session: DialogueSession, evaluation_data: dict) -> str:

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
 import AutoResizeTextarea from "./AutoResizeTextarea";
+import type { ModelProgressHandler } from "../api/client";
 import type { Message } from "../types";
 
 interface ChatPanelProps {
@@ -8,8 +9,8 @@ interface ChatPanelProps {
   disabled: boolean;
   onSend: (content: string) => void;
   onAddVocabulary: (phrase: string, context: string, sourceMessageId?: number) => void;
-  onTranscribeAudio: (audio: Blob) => Promise<string>;
-  onSynthesizeMessage: (messageId: number) => Promise<void>;
+  onTranscribeAudio: (audio: Blob, onProgress?: ModelProgressHandler) => Promise<string>;
+  onSynthesizeMessage: (messageId: number, onProgress?: ModelProgressHandler) => Promise<Message>;
   resolveAudioUrl: (url: string) => string;
 }
 
@@ -47,9 +48,12 @@ export default function ChatPanel({
   } | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
+  const [transcriptionProgress, setTranscriptionProgress] = useState(0);
   const [voiceError, setVoiceError] = useState<string | null>(null);
-  const [synthesizingIds, setSynthesizingIds] = useState<Set<number>>(new Set());
+  const [audioProgressById, setAudioProgressById] = useState<Record<number, number>>({});
+  const [playingMessageId, setPlayingMessageId] = useState<number | null>(null);
   const recorderRef = useRef<RecorderState | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const messagesRef = useRef<HTMLDivElement | null>(null);
   const previousMessagesCountRef = useRef(messages.length);
 
@@ -78,6 +82,13 @@ export default function ChatPanel({
     }
     messagesElement.scrollTo({ top: messagesElement.scrollHeight, behavior: "smooth" });
   }, [messages.length]);
+
+  useEffect(() => {
+    return () => {
+      audioRef.current?.pause();
+      audioRef.current = null;
+    };
+  }, []);
 
   function sendDraft() {
     if (!canSend) {
@@ -184,6 +195,7 @@ export default function ChatPanel({
     recorderRef.current = null;
     setIsRecording(false);
     setIsTranscribing(true);
+    setTranscriptionProgress(2);
     setVoiceError(null);
 
     const sampleRate = recorder.context.sampleRate;
@@ -195,7 +207,9 @@ export default function ChatPanel({
 
     try {
       const audio = encodeWav(recorder.chunks, sampleRate);
-      const text = await onTranscribeAudio(audio);
+      const text = await onTranscribeAudio(audio, (event) => {
+        setTranscriptionProgress(event.progress);
+      });
       if (text) {
         setDraft((current) => [current.trim(), text].filter(Boolean).join(" "));
       }
@@ -203,54 +217,147 @@ export default function ChatPanel({
       setVoiceError(error instanceof Error ? error.message : "Не удалось распознать аудио.");
     } finally {
       setIsTranscribing(false);
+      setTranscriptionProgress(0);
     }
   }
 
-  async function synthesizeMessage(messageId: number) {
+  function setAudioProgress(messageId: number, progress: number) {
+    setAudioProgressById((current) => ({
+      ...current,
+      [messageId]: Math.max(0, Math.min(100, progress)),
+    }));
+  }
+
+  function clearAudioProgress(messageId: number) {
+    setAudioProgressById((current) => {
+      const next = { ...current };
+      delete next[messageId];
+      return next;
+    });
+  }
+
+  async function playMessage(message: Message) {
+    if (audioProgressById[message.id] !== undefined) {
+      return;
+    }
+
+    if (playingMessageId === message.id) {
+      audioRef.current?.pause();
+      audioRef.current = null;
+      setPlayingMessageId(null);
+      return;
+    }
+
     setVoiceError(null);
-    setSynthesizingIds((ids) => new Set(ids).add(messageId));
+    setAudioProgress(message.id, message.audio_url ? 88 : 2);
     try {
-      await onSynthesizeMessage(messageId);
+      let audioUrl = message.audio_url;
+      if (!audioUrl) {
+        const synthesizedMessage = await onSynthesizeMessage(message.id, (event) => {
+          setAudioProgress(message.id, event.progress);
+        });
+        audioUrl = synthesizedMessage.audio_url;
+      }
+
+      if (!audioUrl) {
+        throw new Error("TTS не вернула аудиофайл.");
+      }
+
+      setAudioProgress(message.id, 100);
+      await playAudio(resolveAudioUrl(audioUrl), message.id);
     } catch (error) {
+      audioRef.current?.pause();
+      audioRef.current = null;
+      setPlayingMessageId(null);
       setVoiceError(error instanceof Error ? error.message : "Не удалось озвучить сообщение.");
     } finally {
-      setSynthesizingIds((ids) => {
-        const next = new Set(ids);
-        next.delete(messageId);
-        return next;
-      });
+      clearAudioProgress(message.id);
     }
+  }
+
+  async function playAudio(src: string, messageId: number) {
+    audioRef.current?.pause();
+
+    const audio = new Audio(src);
+    audio.preload = "auto";
+    audioRef.current = audio;
+    setPlayingMessageId(messageId);
+
+    await new Promise<void>((resolve, reject) => {
+      const cleanup = () => {
+        audio.removeEventListener("canplay", handleCanPlay);
+        audio.removeEventListener("error", handleError);
+      };
+      const handleCanPlay = () => {
+        cleanup();
+        resolve();
+      };
+      const handleError = () => {
+        cleanup();
+        reject(new Error("Не удалось загрузить аудиофайл."));
+      };
+
+      audio.addEventListener("canplay", handleCanPlay);
+      audio.addEventListener("error", handleError);
+      audio.load();
+    });
+
+    audio.addEventListener("ended", () => {
+      if (audioRef.current === audio) {
+        audioRef.current = null;
+        setPlayingMessageId(null);
+      }
+    });
+    audio.addEventListener("pause", () => {
+      if (audioRef.current === audio && audio.ended) {
+        audioRef.current = null;
+        setPlayingMessageId(null);
+      }
+    });
+
+    await audio.play();
   }
 
   return (
     <section className="chat-panel">
       <div className="messages" ref={messagesRef}>
-        {messages.map((message) => (
-          <article
-            className={`message message-${message.role}`}
-            key={message.id}
-            aria-label={roleLabels[message.role] ?? message.role}
-            onMouseUp={() => captureSelection(message)}
-          >
-            {message.role !== "user" && !message.audio_url ? (
-              <div className="message-actions">
-                <button
-                  className="mini-icon-button"
-                  type="button"
-                  title="Озвучить"
-                  disabled={synthesizingIds.has(message.id)}
-                  onClick={() => synthesizeMessage(message.id)}
-                >
-                  <PlayIcon />
-                </button>
-              </div>
-            ) : null}
-            <p>{message.content}</p>
-            {message.audio_url ? (
-              <audio className="message-audio" controls preload="none" src={resolveAudioUrl(message.audio_url)} />
-            ) : null}
-          </article>
-        ))}
+        {messages.map((message) => {
+          const audioProgress = audioProgressById[message.id];
+          const isAudioLoading = audioProgress !== undefined;
+          const isPlaying = playingMessageId === message.id;
+
+          return (
+            <article
+              className={`message message-${message.role}`}
+              key={message.id}
+              aria-label={roleLabels[message.role] ?? message.role}
+              onMouseUp={() => captureSelection(message)}
+            >
+              {message.role !== "user" ? (
+                <div className="message-actions">
+                  <button
+                    className={`mini-icon-button ${isAudioLoading ? "progress-button" : ""} ${
+                      isPlaying ? "playing" : ""
+                    }`}
+                    type="button"
+                    title={isAudioLoading ? "Готовим аудио" : isPlaying ? "Остановить" : "Воспроизвести"}
+                    disabled={isAudioLoading}
+                    onClick={() => playMessage(message)}
+                  >
+                    {isAudioLoading ? (
+                      <ProgressIcon progress={audioProgress} />
+                    ) : isPlaying ? (
+                      <StopIcon />
+                    ) : (
+                      <PlayIcon />
+                    )}
+                  </button>
+                </div>
+              ) : null}
+              <p>{message.content}</p>
+            </article>
+          );
+        })}
       </div>
 
       {voiceError ? <p className="error-box compact-error">{voiceError}</p> : null}
@@ -279,19 +386,36 @@ export default function ChatPanel({
           />
           <div className="composer-actions">
             <button
-              className={`voice-button ${isRecording ? "recording" : ""}`}
+              className={`voice-button ${isRecording ? "recording" : ""} ${
+                isTranscribing ? "progress-button" : ""
+              }`}
               type="button"
-              title={isRecording ? "Остановить запись" : "Записать голос"}
+              title={isTranscribing ? "Распознаю речь" : isRecording ? "Остановить запись" : "Записать голос"}
               onClick={toggleRecording}
               disabled={disabled || isTranscribing}
             >
-              {isRecording ? <StopIcon /> : <MicIcon />}
+              {isTranscribing ? (
+                <ProgressIcon progress={transcriptionProgress} />
+              ) : isRecording ? (
+                <StopIcon />
+              ) : (
+                <MicIcon />
+              )}
             </button>
             <button className="send-button" type="submit" disabled={!canSend} aria-label="Отправить реплику">
               <SendIcon />
             </button>
           </div>
         </div>
+        {isTranscribing ? (
+          <div className="transcription-progress" aria-live="polite">
+            <span>Распознаём вашу речь</span>
+            <span>{Math.round(transcriptionProgress)}%</span>
+            <div className="transcription-progress-track">
+              <span style={{ width: `${Math.max(4, transcriptionProgress)}%` }} />
+            </div>
+          </div>
+        ) : null}
       </form>
     </section>
   );
@@ -301,6 +425,26 @@ function PlayIcon() {
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24">
       <path d="M8 5v14l11-7-11-7z" />
+    </svg>
+  );
+}
+
+function ProgressIcon({ progress }: { progress: number }) {
+  const radius = 9;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (Math.max(0, Math.min(100, progress)) / 100) * circumference;
+
+  return (
+    <svg className="progress-icon" aria-hidden="true" viewBox="0 0 24 24">
+      <circle className="progress-icon-track" cx="12" cy="12" r={radius} />
+      <circle
+        className="progress-icon-value"
+        cx="12"
+        cy="12"
+        r={radius}
+        strokeDasharray={circumference}
+        strokeDashoffset={offset}
+      />
     </svg>
   );
 }

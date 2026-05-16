@@ -9,6 +9,7 @@ from .views import (
     send_message,
     start_session,
     synthesize_message,
+    synthesize_message_progress,
 )
 
 
@@ -21,4 +22,5 @@ urlpatterns = [
     path("sessions/<int:session_id>/retry/", retry_stage, name="session-retry"),
     path("sessions/<int:session_id>/ideal-answer/", ideal_answer, name="session-ideal-answer"),
     path("messages/<int:message_id>/speech/", synthesize_message, name="message-speech"),
+    path("messages/<int:message_id>/speech/progress/", synthesize_message_progress, name="message-speech-progress"),
 ]

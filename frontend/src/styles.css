@@ -920,6 +920,36 @@ button svg {
   height: 13px;
 }
 
+.mini-icon-button.playing,
+.mini-icon-button.progress-button,
+.voice-button.progress-button {
+  background: #111111;
+  color: #ffffff;
+}
+
+.progress-button:disabled {
+  opacity: 1;
+}
+
+.progress-icon {
+  transform: rotate(-90deg);
+}
+
+.progress-icon-track,
+.progress-icon-value {
+  fill: none;
+  stroke-width: 2.2;
+}
+
+.progress-icon-track {
+  stroke: rgba(255, 255, 255, 0.26);
+}
+
+.progress-icon-value {
+  stroke: currentColor;
+  transition: stroke-dashoffset 180ms ease;
+}
+
 .selection-bubble {
   position: fixed;
   z-index: 90;
@@ -958,6 +988,33 @@ button svg {
   background: #ffffff;
   padding: 8px;
   box-shadow: 0 10px 34px rgba(0, 0, 0, 0.07);
+}
+
+.transcription-progress {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 10px;
+  align-items: center;
+  padding: 8px 10px 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.transcription-progress-track {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--surface-muted);
+}
+
+.transcription-progress-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #111111;
+  transition: width 180ms ease;
 }
 
 .composer-box textarea {

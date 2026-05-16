@@ -5,6 +5,7 @@ import io
 import tempfile
 import threading
 import uuid
+from collections.abc import Callable
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -181,12 +182,17 @@ class MlxSTTProvider:
         *,
         language: str | None = None,
         context: str = "",
+        progress_callback: Callable[[int, str, str], None] | None = None,
     ) -> str:
+        progress = progress_callback or (lambda _progress, _stage, _detail="": None)
         temp_path: Path | None = None
         try:
+            progress(8, "preparing_audio", "Подготавливаем запись для STT.")
             audio_path = self._materialize_audio(audio_file)
             temp_path = audio_path if hasattr(audio_file, "chunks") else None
+            progress(24, "loading_model", "Загружаем STT-модель.")
             session = self.runtime.asr_session()
+            progress(48, "transcribing", "STT-модель распознает речь.")
             with self.runtime.asr_inference_lock:
                 result = session.transcribe(
                     audio_path,
@@ -194,6 +200,7 @@ class MlxSTTProvider:
                     context=context or settings.STT_CONTEXT,
                     verbose=False,
                 )
+            progress(92, "normalizing_text", "Готовим распознанный текст.")
             return result.text.strip()
         except AIServiceError:
             raise
@@ -226,22 +233,28 @@ class MlxTTSProvider:
         voice: str | None = None,
         instruct: str | None = None,
         lang_code: str | None = None,
+        progress_callback: Callable[[int, str, str], None] | None = None,
     ) -> str:
+        progress = progress_callback or (lambda _progress, _stage, _detail="": None)
         cleaned = text.strip()
         if not cleaned:
             raise AIServiceError("Нельзя озвучить пустой текст.")
 
+        progress(8, "preparing_text", "Подготавливаем текст для TTS.")
         output_dir = Path(settings.MEDIA_ROOT) / "tts"
         output_dir.mkdir(parents=True, exist_ok=True)
         safe_prefix = file_prefix or f"tts_{uuid.uuid4().hex}"
         output_file = output_dir / f"{safe_prefix}.wav"
+        progress(22, "loading_model", "Загружаем TTS-модель.")
         model = self.runtime.tts_model()
+        progress(42, "loading_generator", "Готовим генератор аудио.")
 
         try:
             from mlx_audio.tts.generate import generate_audio
         except Exception as exc:
             raise AIServiceError(f"Не удалось импортировать генератор mlx-audio: {exc}") from exc
 
+        progress(58, "synthesizing_audio", "TTS-модель создает аудио.")
         stdout = io.StringIO()
         with contextlib.redirect_stdout(stdout):
             with self.runtime.tts_inference_lock:
@@ -259,6 +272,7 @@ class MlxTTSProvider:
                     verbose=False,
                 )
 
+        progress(94, "finalizing_audio", "Проверяем готовый аудиофайл.")
         if not output_file.exists():
             details = stdout.getvalue().strip()
             raise AIServiceError(f"TTS {settings.TTS_MODEL} не создала аудиофайл. {details}")

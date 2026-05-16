@@ -3,6 +3,7 @@ import { api, resolveBackendUrl } from "../api/client";
 import ChatPanel from "../components/ChatPanel";
 import GraphView from "../components/GraphView";
 import TutorFeedback from "../components/TutorFeedback";
+import type { ModelProgressHandler } from "../api/client";
 import type { DialogueSession, Evaluation, Message } from "../types";
 
 interface TrainingPageProps {
@@ -65,19 +66,20 @@ export default function TrainingPage({ session, onSessionChange }: TrainingPageP
     }
   }
 
-  async function handleTranscribeAudio(audio: Blob) {
-    const response = await api.transcribeAudio(audio);
+  async function handleTranscribeAudio(audio: Blob, onProgress?: ModelProgressHandler) {
+    const response = await api.transcribeAudio(audio, onProgress);
     return response.text;
   }
 
-  async function handleSynthesizeMessage(messageId: number) {
-    const response = await api.synthesizeMessage(messageId);
+  async function handleSynthesizeMessage(messageId: number, onProgress?: ModelProgressHandler) {
+    const response = await api.synthesizeMessage(messageId, onProgress);
     onSessionChange({
       ...session,
       messages: session.messages.map((message) =>
         message.id === response.message.id ? response.message : message,
       ),
     });
+    return response.message;
   }
 
   async function handleRetry() {

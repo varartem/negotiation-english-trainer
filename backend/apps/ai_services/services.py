@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -66,9 +67,21 @@ class LLMService:
 class STTService:
     provider: str | None = None
 
-    def transcribe(self, audio_file, *, language: str | None = None, context: str = "") -> str:
+    def transcribe(
+        self,
+        audio_file,
+        *,
+        language: str | None = None,
+        context: str = "",
+        progress_callback: Callable[[int, str, str], None] | None = None,
+    ) -> str:
         provider = _stt_provider(_provider_name(self.provider, settings.STT_PROVIDER))
-        return provider.transcribe(audio_file, language=language, context=context)
+        return provider.transcribe(
+            audio_file,
+            language=language,
+            context=context,
+            progress_callback=progress_callback,
+        )
 
 
 @dataclass
@@ -83,6 +96,7 @@ class TTSService:
         voice: str | None = None,
         instruct: str | None = None,
         lang_code: str | None = None,
+        progress_callback: Callable[[int, str, str], None] | None = None,
     ) -> str:
         provider = _tts_provider(_provider_name(self.provider, settings.TTS_PROVIDER))
         return provider.synthesize(
@@ -91,4 +105,5 @@ class TTSService:
             voice=voice,
             instruct=instruct,
             lang_code=lang_code,
+            progress_callback=progress_callback,
         )

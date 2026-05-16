@@ -11,6 +11,17 @@ import type {
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api").replace(/\/$/, "");
 const API_ORIGIN = API_BASE_URL.replace(/\/api$/, "");
 
+export interface ModelProgressEvent<TPayload = unknown> {
+  type: "progress" | "done" | "error";
+  progress: number;
+  stage: string;
+  detail?: string;
+  message?: string;
+  payload?: TPayload;
+}
+
+export type ModelProgressHandler = (event: ModelProgressEvent) => void;
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const isFormData = init.body instanceof FormData;
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -33,6 +44,78 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 
   return response.json() as Promise<T>;
+}
+
+async function streamRequest<T>(
+  path: string,
+  init: RequestInit = {},
+  onProgress?: ModelProgressHandler,
+): Promise<T> {
+  const isFormData = init.body instanceof FormData;
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    headers: isFormData
+      ? init.headers
+      : {
+          "Content-Type": "application/json",
+          ...(init.headers ?? {}),
+        },
+    ...init,
+  });
+
+  if (!response.ok) {
+    const details = await response.text();
+    throw new Error(details || `Request failed: ${response.status}`);
+  }
+
+  if (!response.body) {
+    return response.json() as Promise<T>;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let payload: T | undefined;
+  let isDone = false;
+
+  function handleLine(line: string) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    const event = JSON.parse(trimmed) as ModelProgressEvent<T>;
+    onProgress?.(event);
+    if (event.type === "error") {
+      throw new Error(event.message || "Model request failed");
+    }
+    if (event.type === "done") {
+      payload = event.payload;
+      isDone = true;
+    }
+  }
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      handleLine(line);
+    }
+  }
+
+  buffer += decoder.decode();
+  handleLine(buffer);
+
+  if (!isDone || payload === undefined) {
+    throw new Error("Model stream finished without a result.");
+  }
+
+  return payload;
 }
 
 export function resolveBackendUrl(url: string): string {
@@ -92,20 +175,28 @@ export const api = {
     });
   },
 
-  transcribeAudio(audio: Blob) {
+  transcribeAudio(audio: Blob, onProgress?: ModelProgressHandler) {
     const formData = new FormData();
     formData.append("audio", audio, "speech.wav");
-    return request<{ text: string }>("/speech/transcribe/", {
-      method: "POST",
-      body: formData,
-    });
+    return streamRequest<{ text: string }>(
+      "/speech/transcribe/progress/",
+      {
+        method: "POST",
+        body: formData,
+      },
+      onProgress,
+    );
   },
 
-  synthesizeMessage(messageId: number) {
-    return request<{ message: Message }>(`/messages/${messageId}/speech/`, {
-      method: "POST",
-      body: JSON.stringify({}),
-    });
+  synthesizeMessage(messageId: number, onProgress?: ModelProgressHandler) {
+    return streamRequest<{ message: Message }>(
+      `/messages/${messageId}/speech/progress/`,
+      {
+        method: "POST",
+        body: JSON.stringify({}),
+      },
+      onProgress,
+    );
   },
 
   retry(sessionId: number) {

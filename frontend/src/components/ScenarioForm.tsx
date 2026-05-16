@@ -1,5 +1,6 @@
 import type { ScenarioPayload } from "../api/client";
 import type { Difficulty } from "../types";
+import AutoResizeTextarea from "./AutoResizeTextarea";
 
 interface ScenarioFormProps {
   value: ScenarioPayload;
@@ -52,7 +53,7 @@ export default function ScenarioForm({ value, onChange, onSubmit, disabled }: Sc
           <label className={field.multiline ? "field field-wide" : "field"} key={field.key}>
             <span>{field.label}</span>
             {field.multiline ? (
-              <textarea
+              <AutoResizeTextarea
                 value={String(value[field.key])}
                 onChange={(event) => setField(field.key, event.target.value)}
                 rows={3}

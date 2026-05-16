@@ -3,8 +3,7 @@ import { api, resolveBackendUrl } from "../api/client";
 import ChatPanel from "../components/ChatPanel";
 import GraphView from "../components/GraphView";
 import TutorFeedback from "../components/TutorFeedback";
-import VocabularyTable from "../components/VocabularyTable";
-import type { DialogueSession, Evaluation, VocabularyItem } from "../types";
+import type { DialogueSession, Evaluation, Message } from "../types";
 
 interface TrainingPageProps {
   session: DialogueSession;
@@ -12,10 +11,10 @@ interface TrainingPageProps {
 }
 
 export default function TrainingPage({ session, onSessionChange }: TrainingPageProps) {
-  const [vocabulary, setVocabulary] = useState<VocabularyItem[]>([]);
   const [idealAnswer, setIdealAnswer] = useState<string>("");
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isContextIntroVisible, setIsContextIntroVisible] = useState(true);
 
   const latestEvaluation = useMemo<Evaluation | undefined>(() => {
     return [...session.messages]
@@ -28,19 +27,30 @@ export default function TrainingPage({ session, onSessionChange }: TrainingPageP
   }, [session.current_node_id, session.graph.graph_json.nodes]);
 
   useEffect(() => {
-    api.listVocabulary().then(setVocabulary).catch(() => setVocabulary([]));
-  }, []);
-
-  useEffect(() => {
     window.scrollTo({ top: 0 });
   }, [session.id]);
 
-  async function refreshSession() {
-    const updated = await api.getSession(session.id);
-    onSessionChange(updated);
-  }
+  useEffect(() => {
+    setIsContextIntroVisible(true);
+    const timeoutId = window.setTimeout(() => setIsContextIntroVisible(false), 10000);
+    return () => window.clearTimeout(timeoutId);
+  }, [session.id]);
 
   async function handleSend(content: string) {
+    const optimisticMessage: Message = {
+      id: -Date.now(),
+      session: session.id,
+      role: "user",
+      node_id: session.current_node_id,
+      content,
+      audio_url: "",
+      created_at: new Date().toISOString(),
+    };
+
+    onSessionChange({
+      ...session,
+      messages: [...session.messages, optimisticMessage],
+    });
     setIsSending(true);
     setError(null);
     try {
@@ -48,6 +58,7 @@ export default function TrainingPage({ session, onSessionChange }: TrainingPageP
       onSessionChange(response.session);
       setIdealAnswer("");
     } catch (error) {
+      onSessionChange(session);
       setError(error instanceof Error ? error.message : "Не удалось отправить реплику");
     } finally {
       setIsSending(false);
@@ -95,47 +106,58 @@ export default function TrainingPage({ session, onSessionChange }: TrainingPageP
     if (!trimmed) {
       return;
     }
-    const created = await api.createVocabulary({
+    await api.createVocabulary({
       phrase: trimmed,
       context,
       source_message: sourceMessageId ?? null,
     });
-    setVocabulary((items) => [created, ...items]);
-  }
-
-  async function handleDeleteVocabulary(itemId: number) {
-    await api.deleteVocabulary(itemId);
-    setVocabulary((items) => items.filter((item) => item.id !== itemId));
   }
 
   const currentStageLabel = currentNode?.label || currentNode?.type || session.current_node_id;
 
   return (
     <section className="training-layout">
-      <header className="session-header">
-        <div className="session-header-main">
-          <div className="session-meta-line">
-            <span className="counterparty-chip">{session.scenario.counterparty_role}</span>
-          </div>
-          <h2>{session.scenario.product_name}</h2>
-          <p>{session.scenario.negotiation_goal}</p>
-        </div>
-        <div className="session-actions">
-          <div className="stage-chip" title="Текущий этап">
-            <strong>{currentStageLabel}</strong>
-          </div>
-        </div>
-      </header>
-
       {error ? <p className="error-box">{error}</p> : null}
 
       <div className="training-workspace">
+        <aside
+          className={`dialog-context-card ${isContextIntroVisible ? "context-card-open" : "context-card-collapsed"}`}
+          aria-label="Контекст диалога"
+          tabIndex={0}
+        >
+          <div className="context-card-head">
+            <h2>Контекст</h2>
+            {isContextIntroVisible ? (
+              <svg className="context-progress" viewBox="0 0 20 20" aria-hidden="true">
+                <circle className="context-progress-track" cx="10" cy="10" r="8" />
+                <circle className="context-progress-value" cx="10" cy="10" r="8" />
+              </svg>
+            ) : null}
+          </div>
+          <dl className="context-card-body">
+            <div>
+              <dt>Продукт</dt>
+              <dd>{session.scenario.product_name}</dd>
+            </div>
+            <div>
+              <dt>Собеседник</dt>
+              <dd>{session.scenario.counterparty_role}</dd>
+            </div>
+            <div>
+              <dt>Цель</dt>
+              <dd>{session.scenario.negotiation_goal}</dd>
+            </div>
+            <div>
+              <dt>Этап</dt>
+              <dd>{currentStageLabel}</dd>
+            </div>
+          </dl>
+        </aside>
         <ChatPanel
           messages={session.messages}
           disabled={isSending || session.status !== "active"}
           onSend={handleSend}
           onAddVocabulary={handleAddVocabulary}
-          onRefresh={refreshSession}
           onTranscribeAudio={handleTranscribeAudio}
           onSynthesizeMessage={handleSynthesizeMessage}
           resolveAudioUrl={resolveBackendUrl}
@@ -160,7 +182,6 @@ export default function TrainingPage({ session, onSessionChange }: TrainingPageP
             onRetry={handleRetry}
             onShowIdealAnswer={handleIdealAnswer}
           />
-          <VocabularyTable items={vocabulary} onDelete={handleDeleteVocabulary} />
         </aside>
       </div>
     </section>

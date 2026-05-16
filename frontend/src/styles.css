@@ -14,14 +14,17 @@
   --surface-soft: #f7f7f8;
   --surface-muted: #ececf1;
   --assistant-bubble: #ffffff;
-  --user-bubble: #e9edf4;
+  --user-bubble: #eeeeef;
   --shadow-soft: 0 18px 50px rgba(0, 0, 0, 0.1);
   --radius-panel: 14px;
   --radius-card: 10px;
   --radius-control: 12px;
   --sidebar-collapsed: 56px;
   --sidebar-expanded: 286px;
-  --analytics-width: 420px;
+  --analytics-width: 504px;
+  --chat-width: 720px;
+  --context-card-width: 304px;
+  --context-right-gap: 56px;
 }
 
 * {
@@ -78,8 +81,9 @@ button svg {
 
 .app-main-chat {
   height: 100vh;
+  margin-left: 0;
   overflow: hidden;
-  padding: 0 52px 0 72px;
+  padding: 0 52px;
 }
 
 .app-sidebar {
@@ -91,14 +95,20 @@ button svg {
   background: #fafafa;
   overflow: hidden;
   transition:
+    filter 220ms ease,
     width 220ms ease,
     box-shadow 220ms ease;
 }
 
-.app-sidebar:hover,
-.app-sidebar:focus-within {
+.app-sidebar:hover {
   width: var(--sidebar-expanded);
   box-shadow: 18px 0 50px rgba(0, 0, 0, 0.08);
+}
+
+.app-shell:has(.analytics-hover-zone:hover) .app-sidebar,
+.app-shell:has(.analytics-drawer:hover) .app-sidebar,
+.app-shell:has(.analytics-drawer:focus-within) .app-sidebar {
+  filter: brightness(0.9);
 }
 
 .sidebar-content {
@@ -122,6 +132,7 @@ button svg {
 
 .sidebar-mark {
   display: inline-flex;
+  align-items: center;
   justify-content: center;
   width: 34px;
   height: 34px;
@@ -146,8 +157,7 @@ button svg {
   white-space: nowrap;
 }
 
-.app-sidebar:hover .sidebar-label,
-.app-sidebar:focus-within .sidebar-label {
+.app-sidebar:hover .sidebar-label {
   opacity: 1;
   transform: translateX(0);
 }
@@ -179,8 +189,7 @@ button svg {
     width 220ms ease;
 }
 
-.app-sidebar:hover .sidebar-action,
-.app-sidebar:focus-within .sidebar-action {
+.app-sidebar:hover .sidebar-action {
   width: calc(var(--sidebar-expanded) - 16px);
 }
 
@@ -203,8 +212,7 @@ button svg {
   white-space: nowrap;
 }
 
-.app-sidebar:hover .sidebar-action > span:last-child,
-.app-sidebar:focus-within .sidebar-action > span:last-child {
+.app-sidebar:hover .sidebar-action > span:last-child {
   opacity: 1;
   transform: translateX(0);
 }
@@ -252,8 +260,7 @@ button svg {
   transform: translateX(-4px);
 }
 
-.app-sidebar:hover .sidebar-history,
-.app-sidebar:focus-within .sidebar-history {
+.app-sidebar:hover .sidebar-history {
   opacity: 1;
   pointer-events: auto;
   transform: translateX(0);
@@ -304,6 +311,8 @@ button svg {
 
 .scenario-start-actions {
   display: flex;
+  width: min(460px, 100%);
+  flex-direction: column;
   flex-wrap: wrap;
   gap: 12px;
   justify-content: center;
@@ -311,8 +320,9 @@ button svg {
 
 .start-primary,
 .start-secondary {
+  width: 100%;
   min-height: 54px;
-  border-radius: 14px;
+  border-radius: 999px;
   padding: 0 24px;
   font-weight: 600;
   transition:
@@ -370,9 +380,15 @@ button svg {
 
 .dictionary-page {
   display: grid;
-  grid-template-columns: minmax(320px, 0.7fr) minmax(0, 1.3fr);
-  gap: 22px;
-  align-items: start;
+  min-height: calc(100vh - 56px);
+  place-items: start center;
+  padding: 24px 0;
+}
+
+.dictionary-content {
+  display: grid;
+  width: min(1120px, 100%);
+  gap: 14px;
 }
 
 .scenario-form,
@@ -453,7 +469,8 @@ button svg {
 
 .field textarea,
 .message-form textarea {
-  resize: vertical;
+  overflow: hidden;
+  resize: none;
 }
 
 .field input:focus,
@@ -539,10 +556,27 @@ button svg {
 }
 
 .training-layout {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   height: 100vh;
   min-height: 620px;
+}
+
+.training-layout::before {
+  content: "";
+  position: fixed;
+  z-index: 43;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.1);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 220ms ease;
+}
+
+.training-layout:has(.analytics-hover-zone:hover)::before,
+.training-layout:has(.analytics-drawer:hover)::before,
+.training-layout:has(.analytics-drawer:focus-within)::before {
+  opacity: 1;
 }
 
 .session-header {
@@ -617,14 +651,158 @@ button svg {
 .training-workspace {
   position: relative;
   display: flex;
+  flex: 1;
+  align-items: stretch;
   min-height: 0;
   justify-content: center;
+  padding-top: 18px;
+}
+
+.dialog-context-card {
+  position: fixed;
+  z-index: 38;
+  top: 24px;
+  right: var(--context-right-gap);
+  width: var(--context-card-width);
+  height: auto;
+  max-height: calc(100vh - 48px);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #f2f2f3;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+  padding: 16px 18px;
+  scrollbar-width: none;
+  transition:
+    width 220ms ease,
+    border-radius 220ms ease,
+    padding 220ms ease,
+    box-shadow 220ms ease,
+    background 220ms ease;
+}
+
+.dialog-context-card::-webkit-scrollbar {
+  display: none;
+}
+
+.context-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.dialog-context-card h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.context-progress {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  transform: rotate(-90deg);
+}
+
+.context-progress-track,
+.context-progress-value {
+  fill: none;
+  stroke-width: 2.2;
+}
+
+.context-progress-track {
+  stroke: rgba(17, 17, 17, 0.14);
+}
+
+.context-progress-value {
+  stroke: #111111;
+  stroke-linecap: round;
+  stroke-dasharray: 50.27;
+  stroke-dashoffset: 0;
+  animation: context-countdown 10s linear forwards;
+}
+
+@keyframes context-countdown {
+  to {
+    stroke-dashoffset: 50.27;
+  }
+}
+
+.context-card-body {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  opacity: 1;
+  max-height: 520px;
+  transition:
+    opacity 180ms ease,
+    max-height 220ms ease;
+}
+
+.context-card-collapsed {
+  width: 124px;
+  border-radius: 999px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.context-card-collapsed .context-card-head {
+  justify-content: center;
+  min-height: 44px;
+  margin: 0;
+}
+
+.context-card-collapsed .context-card-body {
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.context-card-collapsed:hover,
+.context-card-collapsed:focus-within {
+  width: var(--context-card-width);
+  border-radius: 18px;
+  padding: 16px 18px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.12);
+}
+
+.context-card-collapsed:hover .context-card-head,
+.context-card-collapsed:focus-within .context-card-head {
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.context-card-collapsed:hover .context-card-body,
+.context-card-collapsed:focus-within .context-card-body {
+  max-height: 520px;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.dialog-context-card dt {
+  color: var(--quiet);
+  font-size: 10px;
+  font-weight: 560;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.dialog-context-card dd {
+  margin: 3px 0 0;
+  color: #2f2f2f;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .chat-panel {
   display: flex;
-  width: min(900px, 100%);
+  width: min(var(--chat-width), 100%);
+  max-width: var(--chat-width);
   min-height: 0;
+  flex: 1;
   flex-direction: column;
 }
 
@@ -642,7 +820,7 @@ button svg {
   flex-direction: column;
   gap: 18px;
   overflow: auto;
-  padding: 20px 0 18px;
+  padding: 0 0 18px;
   scroll-behavior: smooth;
   scrollbar-width: none;
 }
@@ -736,7 +914,7 @@ button svg {
 }
 
 .message-form {
-  width: min(900px, 100%);
+  width: min(var(--chat-width), 100%);
   margin: 0 auto;
   padding: 0 0 24px;
 }
@@ -755,7 +933,6 @@ button svg {
 
 .composer-box textarea {
   min-height: 44px;
-  max-height: 150px;
   border: 0;
   background: transparent;
   padding: 9px 8px 7px;
@@ -774,16 +951,10 @@ button svg {
   align-items: center;
 }
 
-.composer-state {
-  color: var(--quiet);
-  font-size: 12px;
-  white-space: nowrap;
-}
-
 .voice-button {
-  width: 44px;
-  height: 44px;
-  min-height: 44px;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
   border-radius: 50%;
   background: #111111;
   color: #ffffff;
@@ -799,22 +970,22 @@ button svg {
 }
 
 .voice-button svg {
-  width: 19px;
-  height: 19px;
+  width: 15px;
+  height: 15px;
 }
 
 .send-button {
-  width: 38px;
-  height: 38px;
-  min-height: 38px;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
   border-radius: 50%;
   background: #f0f0f0;
   color: #555555;
 }
 
 .send-button svg {
-  width: 18px;
-  height: 18px;
+  width: 15px;
+  height: 15px;
 }
 
 .analytics-hover-zone {
@@ -1093,10 +1264,14 @@ button svg {
 
 .vocabulary-table-wrap {
   width: 100%;
-  max-height: 380px;
+  max-height: calc(100vh - 180px);
   overflow: auto;
   border-radius: var(--radius-card);
   background: transparent;
+}
+
+.dictionary-page .vocabulary-panel {
+  padding: 28px;
 }
 
 .vocabulary-table {
@@ -1143,6 +1318,37 @@ button svg {
   text-align: right;
 }
 
+.table-action-group {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.table-textarea {
+  width: 100%;
+  min-height: 42px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--surface-soft);
+  color: var(--ink);
+  outline: none;
+  overflow: hidden;
+  padding: 10px 11px;
+  resize: none;
+  transition:
+    background 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.table-textarea:focus {
+  background: #ffffff;
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+
+.vocabulary-draft-row td {
+  background: #fbfbfb;
+}
+
 .muted-text {
   color: var(--muted);
 }
@@ -1154,12 +1360,16 @@ button svg {
     padding: 0 18px 0 26px;
   }
 
+  .app-main-chat {
+    margin-left: 0;
+    padding: 0 18px;
+  }
+
   .app-main:not(.app-main-chat) {
     padding-top: 20px;
     padding-bottom: 24px;
   }
 
-  .dictionary-page,
   .form-grid,
   .dictionary-form-grid,
   .session-header,
@@ -1184,6 +1394,32 @@ button svg {
 
   .training-layout {
     min-height: 100vh;
+  }
+
+  .training-workspace {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-right: 0;
+    padding-top: 0;
+  }
+
+  .dialog-context-card {
+    position: fixed;
+    top: 12px;
+    right: 48px;
+    width: min(var(--context-card-width), calc(100vw - 84px));
+    margin: 0;
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.12);
+  }
+
+  .context-card-collapsed {
+    width: 124px;
+  }
+
+  .context-card-collapsed:hover,
+  .context-card-collapsed:focus-within {
+    width: min(var(--context-card-width), calc(100vw - 84px));
   }
 
   .session-header {
@@ -1242,8 +1478,7 @@ button svg {
     --sidebar-collapsed: 48px;
   }
 
-  .app-sidebar:hover,
-  .app-sidebar:focus-within {
+  .app-sidebar:hover {
     width: min(var(--sidebar-expanded), calc(100vw - 24px));
   }
 
@@ -1259,6 +1494,25 @@ button svg {
   .app-main-chat {
     padding-right: 12px;
     padding-left: 14px;
+  }
+
+  .app-main-chat {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .dialog-context-card {
+    right: 12px;
+    width: min(var(--context-card-width), calc(100vw - 24px));
+  }
+
+  .context-card-collapsed {
+    width: 112px;
+  }
+
+  .context-card-collapsed:hover,
+  .context-card-collapsed:focus-within {
+    width: min(var(--context-card-width), calc(100vw - 24px));
   }
 
   .session-header h2 {

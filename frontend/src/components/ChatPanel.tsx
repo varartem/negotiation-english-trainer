@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
+import AutoResizeTextarea from "./AutoResizeTextarea";
 import type { Message } from "../types";
 
 interface ChatPanelProps {
@@ -7,7 +8,6 @@ interface ChatPanelProps {
   disabled: boolean;
   onSend: (content: string) => void;
   onAddVocabulary: (phrase: string, context: string, sourceMessageId?: number) => void;
-  onRefresh: () => void;
   onTranscribeAudio: (audio: Blob) => Promise<string>;
   onSynthesizeMessage: (messageId: number) => Promise<void>;
   resolveAudioUrl: (url: string) => string;
@@ -34,7 +34,6 @@ export default function ChatPanel({
   disabled,
   onSend,
   onAddVocabulary,
-  onRefresh,
   onTranscribeAudio,
   onSynthesizeMessage,
   resolveAudioUrl,
@@ -51,6 +50,8 @@ export default function ChatPanel({
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [synthesizingIds, setSynthesizingIds] = useState<Set<number>>(new Set());
   const recorderRef = useRef<RecorderState | null>(null);
+  const messagesRef = useRef<HTMLDivElement | null>(null);
+  const previousMessagesCountRef = useRef(messages.length);
 
   const canSend = useMemo(() => draft.trim().length > 0 && !disabled && !isTranscribing, [draft, disabled, isTranscribing]);
 
@@ -64,6 +65,19 @@ export default function ChatPanel({
     document.addEventListener("selectionchange", handleSelectionChange);
     return () => document.removeEventListener("selectionchange", handleSelectionChange);
   }, []);
+
+  useEffect(() => {
+    const messagesElement = messagesRef.current;
+    const previousMessagesCount = previousMessagesCountRef.current;
+    previousMessagesCountRef.current = messages.length;
+    if (!messagesElement) {
+      return;
+    }
+    if (messages.length <= previousMessagesCount) {
+      return;
+    }
+    messagesElement.scrollTo({ top: messagesElement.scrollHeight, behavior: "smooth" });
+  }, [messages.length]);
 
   function sendDraft() {
     if (!canSend) {
@@ -210,13 +224,7 @@ export default function ChatPanel({
 
   return (
     <section className="chat-panel">
-      <div className="conversation-toolbar">
-        <button className="icon-button ghost-button" type="button" title="Обновить сессию" onClick={onRefresh}>
-          <RefreshIcon />
-        </button>
-      </div>
-
-      <div className="messages">
+      <div className="messages" ref={messagesRef}>
         {messages.map((message) => (
           <article
             className={`message message-${message.role}`}
@@ -261,7 +269,7 @@ export default function ChatPanel({
 
       <form className="message-form" onSubmit={handleSubmit}>
         <div className="composer-box">
-          <textarea
+          <AutoResizeTextarea
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={handleDraftKeyDown}
@@ -270,9 +278,6 @@ export default function ChatPanel({
             disabled={disabled || isTranscribing}
           />
           <div className="composer-actions">
-            {isTranscribing || isRecording ? (
-              <span className="composer-state">{isTranscribing ? "Распознавание..." : "Запись"}</span>
-            ) : null}
             <button
               className={`voice-button ${isRecording ? "recording" : ""}`}
               type="button"
@@ -289,14 +294,6 @@ export default function ChatPanel({
         </div>
       </form>
     </section>
-  );
-}
-
-function RefreshIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M20 6v5h-5M4 18v-5h5M19 11a7 7 0 0 0-12.3-4.5M5 13a7 7 0 0 0 12.3 4.5" />
-    </svg>
   );
 }
 

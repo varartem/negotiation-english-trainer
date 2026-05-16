@@ -1,19 +1,24 @@
 import type {
   DialogueSession,
   Difficulty,
+  Message,
   NegotiationGraph,
   Scenario,
   VocabularyItem,
 } from "../types";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api").replace(/\/$/, "");
+const API_ORIGIN = API_BASE_URL.replace(/\/api$/, "");
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const isFormData = init.body instanceof FormData;
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(init.headers ?? {}),
-    },
+    headers: isFormData
+      ? init.headers
+      : {
+          "Content-Type": "application/json",
+          ...(init.headers ?? {}),
+        },
     ...init,
   });
 
@@ -27,6 +32,13 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 
   return response.json() as Promise<T>;
+}
+
+export function resolveBackendUrl(url: string): string {
+  if (!url || /^https?:\/\//i.test(url)) {
+    return url;
+  }
+  return `${API_ORIGIN}${url.startsWith("/") ? "" : "/"}${url}`;
 }
 
 export type ScenarioPayload = Omit<Scenario, "id" | "is_random" | "created_at" | "updated_at">;
@@ -68,6 +80,22 @@ export const api = {
     return request<{ session: DialogueSession }>(`/sessions/${sessionId}/messages/`, {
       method: "POST",
       body: JSON.stringify({ content }),
+    });
+  },
+
+  transcribeAudio(audio: Blob) {
+    const formData = new FormData();
+    formData.append("audio", audio, "speech.wav");
+    return request<{ text: string }>("/speech/transcribe/", {
+      method: "POST",
+      body: formData,
+    });
+  },
+
+  synthesizeMessage(messageId: number) {
+    return request<{ message: Message }>(`/messages/${messageId}/speech/`, {
+      method: "POST",
+      body: JSON.stringify({}),
     });
   },
 

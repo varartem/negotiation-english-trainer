@@ -104,11 +104,14 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_PARSER_CLASSES": ["rest_framework.parsers.JSONParser"],
+    "EXCEPTION_HANDLER": "apps.ai_services.exception_handler.ai_exception_handler",
 }
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
@@ -121,8 +124,22 @@ CORS_ALLOWED_ORIGINS = sorted(
 )
 CORS_ALLOW_CREDENTIALS = False
 
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "mock")
-LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://localhost:11434")
-LLM_MODEL = os.getenv("LLM_MODEL", "qwen3:8b")
-STT_PROVIDER = os.getenv("STT_PROVIDER", "mock")
-TTS_PROVIDER = os.getenv("TTS_PROVIDER", "mock")
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "mlx")
+LLM_MODEL = os.getenv("LLM_MODEL", "mlx-community/Qwen3.5-9B-OptiQ-4bit")
+LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.2"))
+LLM_TOP_P = float(os.getenv("LLM_TOP_P", "0.9"))
+LLM_TOP_K = int(os.getenv("LLM_TOP_K", "20"))
+
+STT_PROVIDER = os.getenv("STT_PROVIDER", "mlx")
+STT_MODEL = os.getenv("STT_MODEL", "Qwen/Qwen3-ASR-0.6B")
+STT_LANGUAGE = os.getenv("STT_LANGUAGE", "English")
+STT_CONTEXT = os.getenv(
+    "STT_CONTEXT",
+    "negotiation sales procurement budget price ROI pilot contract discount commitment",
+)
+
+TTS_PROVIDER = os.getenv("TTS_PROVIDER", "mlx")
+TTS_MODEL = os.getenv("TTS_MODEL", "mlx-community/Qwen3-TTS-12Hz-0.6B-CustomVoice-bf16")
+TTS_VOICE = os.getenv("TTS_VOICE", "Aiden")
+TTS_LANGUAGE = os.getenv("TTS_LANGUAGE", "en")
+TTS_INSTRUCT = os.getenv("TTS_INSTRUCT", "Speak in a calm, professional negotiation partner tone.")

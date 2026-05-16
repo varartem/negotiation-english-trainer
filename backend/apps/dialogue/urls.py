@@ -1,6 +1,6 @@
 from django.urls import path
 
-from .views import SessionDetailView, ideal_answer, retry_stage, send_message, start_session
+from .views import SessionDetailView, ideal_answer, retry_stage, send_message, start_session, synthesize_message
 
 
 urlpatterns = [
@@ -9,4 +9,5 @@ urlpatterns = [
     path("sessions/<int:session_id>/messages/", send_message, name="session-message"),
     path("sessions/<int:session_id>/retry/", retry_stage, name="session-retry"),
     path("sessions/<int:session_id>/ideal-answer/", ideal_answer, name="session-ideal-answer"),
+    path("messages/<int:message_id>/speech/", synthesize_message, name="message-speech"),
 ]

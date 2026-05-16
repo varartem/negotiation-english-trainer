@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { api } from "../api/client";
+import { api, resolveBackendUrl } from "../api/client";
 import ChatPanel from "../components/ChatPanel";
 import GraphView from "../components/GraphView";
 import TutorFeedback from "../components/TutorFeedback";
@@ -52,6 +52,21 @@ export default function TrainingPage({ session, onSessionChange, onNewScenario }
     } finally {
       setIsSending(false);
     }
+  }
+
+  async function handleTranscribeAudio(audio: Blob) {
+    const response = await api.transcribeAudio(audio);
+    return response.text;
+  }
+
+  async function handleSynthesizeMessage(messageId: number) {
+    const response = await api.synthesizeMessage(messageId);
+    onSessionChange({
+      ...session,
+      messages: session.messages.map((message) =>
+        message.id === response.message.id ? response.message : message,
+      ),
+    });
   }
 
   async function handleRetry() {
@@ -115,6 +130,9 @@ export default function TrainingPage({ session, onSessionChange, onNewScenario }
           onSend={handleSend}
           onAddVocabulary={handleAddVocabulary}
           onRefresh={refreshSession}
+          onTranscribeAudio={handleTranscribeAudio}
+          onSynthesizeMessage={handleSynthesizeMessage}
+          resolveAudioUrl={resolveBackendUrl}
         />
         <GraphView graph={session.graph.graph_json} currentNodeId={session.current_node_id} />
         <TutorFeedback

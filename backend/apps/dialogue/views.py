@@ -2,7 +2,7 @@ from rest_framework import generics, status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from apps.ai_services.services import LLMService
+from apps.ai_services.services import LLMService, TTSService
 from apps.negotiation_graph.models import NegotiationGraph
 from apps.scenarios.models import Scenario
 
@@ -127,6 +127,15 @@ def ideal_answer(request, session_id: int):
         pk=session_id,
     )
     return Response({"ideal_answer": LLMService().generate_ideal_answer(session)})
+
+
+@api_view(["POST"])
+def synthesize_message(request, message_id: int):
+    message = generics.get_object_or_404(Message, pk=message_id)
+    file_prefix = f"message_{message.id}_{message.created_at.strftime('%Y%m%d%H%M%S')}"
+    message.audio_url = TTSService().synthesize(message.content, file_prefix=file_prefix)
+    message.save(update_fields=["audio_url"])
+    return Response({"message": MessageSerializer(message).data})
 
 
 def choose_next_node_id(session: DialogueSession, evaluation_data: dict) -> str:

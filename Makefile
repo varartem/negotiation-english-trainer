@@ -1,8 +1,11 @@
-.PHONY: setup db-up db-down migrate backend frontend
+.PHONY: setup start db-up db-down migrate backend frontend
 
 setup:
 	cd backend && python3 -m venv .venv && . .venv/bin/activate && pip install --upgrade pip && pip install -r requirements.txt
 	cd frontend && npm install
+
+start:
+	./scripts/start-dev.sh
 
 db-up:
 	docker compose up -d postgres

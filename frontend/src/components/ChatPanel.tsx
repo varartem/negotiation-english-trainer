@@ -1,4 +1,5 @@
-import { FormEvent, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { FormEvent, KeyboardEvent } from "react";
 import type { Message } from "../types";
 
 interface ChatPanelProps {
@@ -39,7 +40,12 @@ export default function ChatPanel({
   resolveAudioUrl,
 }: ChatPanelProps) {
   const [draft, setDraft] = useState("");
-  const [selected, setSelected] = useState<{ text: string; context: string; messageId?: number } | null>(null);
+  const [selected, setSelected] = useState<{
+    text: string;
+    context: string;
+    messageId?: number;
+    position: { left: number; top: number };
+  } | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
@@ -48,8 +54,18 @@ export default function ChatPanel({
 
   const canSend = useMemo(() => draft.trim().length > 0 && !disabled && !isTranscribing, [draft, disabled, isTranscribing]);
 
-  function handleSubmit(event: FormEvent) {
-    event.preventDefault();
+  useEffect(() => {
+    function handleSelectionChange() {
+      if (!window.getSelection()?.toString().trim()) {
+        setSelected(null);
+      }
+    }
+
+    document.addEventListener("selectionchange", handleSelectionChange);
+    return () => document.removeEventListener("selectionchange", handleSelectionChange);
+  }, []);
+
+  function sendDraft() {
     if (!canSend) {
       return;
     }
@@ -57,11 +73,38 @@ export default function ChatPanel({
     setDraft("");
   }
 
-  function captureSelection(message: Message) {
-    const text = window.getSelection()?.toString().trim() ?? "";
-    if (text) {
-      setSelected({ text, context: message.content, messageId: message.id });
+  function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    sendDraft();
+  }
+
+  function handleDraftKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) {
+      return;
     }
+    event.preventDefault();
+    sendDraft();
+  }
+
+  function captureSelection(message: Message) {
+    const selection = window.getSelection();
+    const text = selection?.toString().trim() ?? "";
+    if (!selection || !text || selection.rangeCount === 0) {
+      setSelected(null);
+      return;
+    }
+
+    const rect = selection.getRangeAt(0).getBoundingClientRect();
+    const center = rect.left + rect.width / 2;
+    setSelected({
+      text,
+      context: message.content,
+      messageId: message.id,
+      position: {
+        left: Math.min(Math.max(110, center), window.innerWidth - 110),
+        top: Math.max(44, rect.top - 10),
+      },
+    });
   }
 
   async function addSelectedPhrase() {
@@ -204,18 +247,24 @@ export default function ChatPanel({
 
       {voiceError ? <p className="error-box compact-error">{voiceError}</p> : null}
 
-      <div className="selection-row">
-        <span>{selected ? selected.text : "Выделите фразу"}</span>
-        <button className="secondary-button" type="button" onClick={addSelectedPhrase} disabled={!selected}>
-          Добавить
+      {selected ? (
+        <button
+          className="selection-bubble"
+          type="button"
+          style={{ left: selected.position.left, top: selected.position.top }}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={addSelectedPhrase}
+        >
+          Добавить в словарь
         </button>
-      </div>
+      ) : null}
 
       <form className="message-form" onSubmit={handleSubmit}>
         <div className="composer-box">
           <textarea
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={handleDraftKeyDown}
             placeholder="Ответ на английском..."
             rows={3}
             disabled={disabled || isTranscribing}

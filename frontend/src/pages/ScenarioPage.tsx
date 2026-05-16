@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api, type ScenarioPayload } from "../api/client";
 import ScenarioForm from "../components/ScenarioForm";
-import type { DialogueSession, Difficulty } from "../types";
+import type { DialogueSession } from "../types";
 
 interface ScenarioPageProps {
   onSessionReady: (session: DialogueSession) => void;
@@ -21,8 +21,8 @@ const initialScenario: ScenarioPayload = {
 };
 
 export default function ScenarioPage({ onSessionReady }: ScenarioPageProps) {
+  const [mode, setMode] = useState<"choice" | "manual">("choice");
   const [scenario, setScenario] = useState<ScenarioPayload>(initialScenario);
-  const [randomDifficulty, setRandomDifficulty] = useState<Difficulty>("medium");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,7 +49,7 @@ export default function ScenarioPage({ onSessionReady }: ScenarioPageProps) {
     setIsLoading(true);
     setError(null);
     try {
-      const created = await api.createRandomScenario(randomDifficulty);
+      const created = await api.createRandomScenario("medium");
       await bootTraining(created.id);
     } catch (error) {
       setError(error instanceof Error ? error.message : "Не удалось создать случайный сценарий");
@@ -58,24 +58,29 @@ export default function ScenarioPage({ onSessionReady }: ScenarioPageProps) {
     }
   }
 
-  return (
-    <section className="scenario-grid">
-      <ScenarioForm value={scenario} onChange={setScenario} onSubmit={handleSubmit} disabled={isLoading} />
-      <aside className="side-panel">
-        <h2>Случайный сценарий</h2>
-        <label className="field">
-          <span>Сложность</span>
-          <select value={randomDifficulty} onChange={(event) => setRandomDifficulty(event.target.value as Difficulty)}>
-            <option value="easy">Легко</option>
-            <option value="medium">Средне</option>
-            <option value="hard">Сложно</option>
-          </select>
-        </label>
-        <button className="primary-button" type="button" onClick={handleRandom} disabled={isLoading}>
-          Сгенерировать и начать
-        </button>
+  if (mode === "choice") {
+    return (
+      <section className="scenario-start">
+        <div className="scenario-start-actions">
+          <button className="start-primary" type="button" onClick={handleRandom} disabled={isLoading}>
+            Сгенерировать сценарий переговоров
+          </button>
+          <button className="start-secondary" type="button" onClick={() => setMode("manual")} disabled={isLoading}>
+            Задать сценарий переговоров вручную
+          </button>
+        </div>
         {error ? <p className="error-box">{error}</p> : null}
-      </aside>
+      </section>
+    );
+  }
+
+  return (
+    <section className="scenario-manual">
+      <button className="manual-back-button" type="button" onClick={() => setMode("choice")} disabled={isLoading}>
+        Назад
+      </button>
+      <ScenarioForm value={scenario} onChange={setScenario} onSubmit={handleSubmit} disabled={isLoading} />
+      {error ? <p className="error-box">{error}</p> : null}
     </section>
   );
 }

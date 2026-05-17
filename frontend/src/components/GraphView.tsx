@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import ReactFlow, { Background, type Edge, type Node } from "reactflow";
+import ReactFlow, { Background, MarkerType, type Edge, type Node } from "reactflow";
 import type { GraphJson, GraphNode } from "../types";
 
 interface GraphViewProps {
@@ -18,6 +18,12 @@ const nodeOrder: Record<string, number> = {
   dead_end: 6,
 };
 
+const MAIN_NODE_X = 150;
+const SUCCESS_NODE_X = 42;
+const DEAD_END_NODE_X = 258;
+const NODE_Y_STEP = 76;
+const TERMINAL_Y = 456;
+
 const nodeTypeLabels: Record<string, string> = {
   opening: "Открытие",
   discovery: "Выявление потребностей",
@@ -35,6 +41,21 @@ function displayNodeLabel(node: GraphNode) {
   return nodeTypeLabels[node.type] ?? node.label;
 }
 
+function graphNodeOrder(node: GraphNode, index: number) {
+  return nodeOrder[node.type] ?? index + 0.5;
+}
+
+function progressionNodes(graph: GraphJson) {
+  return graph.nodes
+    .map((node, index) => ({ node, index }))
+    .filter(({ node }) => node.type !== "dead_end")
+    .sort((left, right) => {
+      const orderDiff = graphNodeOrder(left.node, left.index) - graphNodeOrder(right.node, right.index);
+      return orderDiff || left.index - right.index;
+    })
+    .map(({ node }) => node);
+}
+
 export default function GraphView({ graph, currentNodeId }: GraphViewProps) {
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
 
@@ -44,8 +65,8 @@ export default function GraphView({ graph, currentNodeId }: GraphViewProps) {
       const isCurrent = node.id === currentNodeId;
       const isSuccess = node.type === "success";
       const isDeadEnd = node.type === "dead_end";
-      const x = isSuccess ? 40 : isDeadEnd ? 260 : order % 2 === 0 ? 40 : 260;
-      const y = isSuccess || isDeadEnd ? 408 : order * 68;
+      const x = isSuccess ? SUCCESS_NODE_X : isDeadEnd ? DEAD_END_NODE_X : MAIN_NODE_X;
+      const y = isSuccess || isDeadEnd ? TERMINAL_Y : order * NODE_Y_STEP;
       return {
         id: node.id,
         position: { x, y },
@@ -62,18 +83,26 @@ export default function GraphView({ graph, currentNodeId }: GraphViewProps) {
   }, [graph.nodes, currentNodeId]);
 
   const edges = useMemo<Edge[]>(() => {
-    return graph.edges.map((edge) => ({
-      id: edge.id,
-      source: edge.source,
-      target: edge.target,
-      animated: edge.source === currentNodeId,
+    const path = progressionNodes(graph);
+
+    return path.slice(0, -1).map((node, index) => ({
+      id: `main-${node.id}-${path[index + 1].id}`,
+      source: node.id,
+      target: path[index + 1].id,
+      animated: node.id === currentNodeId,
       type: "smoothstep",
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        width: 12,
+        height: 12,
+        color: node.id === currentNodeId ? "#6f9f93" : "#d9dee6",
+      },
       style: {
-        strokeWidth: edge.source === currentNodeId ? 1.8 : 1.2,
-        stroke: edge.source === currentNodeId ? "#8fb7ad" : "#d9dee6",
+        strokeWidth: node.id === currentNodeId ? 2 : 1.25,
+        stroke: node.id === currentNodeId ? "#6f9f93" : "#d9dee6",
       },
     }));
-  }, [graph.edges, currentNodeId]);
+  }, [graph, currentNodeId]);
 
   return (
     <section className="panel graph-panel">

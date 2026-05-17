@@ -1380,15 +1380,36 @@ button svg {
   gap: 8px;
 }
 
+.score-card,
+.signal-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(17, 17, 17, 0.075);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 11px 12px 11px 27px;
+}
+
+.score-card::before,
+.signal-card::before {
+  content: "";
+  position: absolute;
+  top: 17px;
+  left: 12px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--tone-accent);
+  box-shadow: 0 0 0 3px var(--tone-halo);
+}
+
 .score-card {
-  border-radius: var(--radius-card);
-  background: #f6f6f6;
-  padding: 10px;
+  min-height: 76px;
 }
 
 .score-card span {
   display: block;
-  color: var(--quiet);
+  color: #777777;
   font-size: 11px;
 }
 
@@ -1397,30 +1418,64 @@ button svg {
   align-items: baseline;
   gap: 2px;
   margin-top: 6px;
-  color: #1f1f1f;
-  font-size: 21px;
-  font-weight: 620;
+  color: var(--tone-value);
+  font-size: 20px;
+  font-weight: 600;
 }
 
 .score-card small {
-  color: var(--quiet);
+  color: #8a8a8a;
   font-size: 12px;
   font-weight: 520;
 }
 
-.meta-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
+.tone-positive {
+  --tone-accent: #0f5f3d;
+  --tone-halo: rgba(15, 95, 61, 0.12);
+  --tone-value: #174f37;
+}
+
+.tone-neutral {
+  --tone-accent: #5f6266;
+  --tone-halo: rgba(17, 17, 17, 0.08);
+  --tone-value: #43464a;
+}
+
+.tone-negative {
+  --tone-accent: #8c302b;
+  --tone-halo: rgba(140, 48, 43, 0.13);
+  --tone-value: #73302d;
+}
+
+.signal-list {
+  display: grid;
+  gap: 8px;
   margin: 13px 0 4px;
 }
 
-.meta-row span {
-  border-radius: 999px;
-  background: #f6f6f6;
-  color: #555555;
-  padding: 6px 9px;
+.signal-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 12px;
+  align-items: baseline;
+  justify-content: space-between;
+  min-height: 48px;
+}
+
+.signal-card span {
+  flex: 1 1 150px;
+  color: #777777;
   font-size: 12px;
+}
+
+.signal-card strong {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--tone-value);
+  font-size: 14px;
+  font-weight: 590;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 
 .feedback-list,

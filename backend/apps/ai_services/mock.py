@@ -198,12 +198,6 @@ class MockLLMProvider:
                     "target": "success_1",
                     "condition": "пользователь подтверждает следующий шаг и обязательство",
                 },
-                {
-                    "id": "edge_any_dead_end",
-                    "source": "objection_1",
-                    "target": "dead_end_1",
-                    "condition": "пользователь игнорирует опасение, давит слишком сильно или сдаётся",
-                },
             ],
             "start_node_id": "opening_1",
             "max_depth": max_depth,

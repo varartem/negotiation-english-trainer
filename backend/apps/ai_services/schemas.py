@@ -39,6 +39,15 @@ SCENARIO_FIELDS = {
 SENTIMENTS = {"positive", "neutral", "negative"}
 EMOTIONS = {"anger", "fear", "sadness", "surprise", "joy", "disgust", "neutral"}
 PRESSURE_LEVELS = {"low", "medium", "high"}
+GRAPH_STAGE_ORDER = {
+    "opening": 0,
+    "discovery": 1,
+    "value_explanation": 2,
+    "objection_handling": 3,
+    "price_negotiation": 4,
+    "closing": 5,
+    "success": 6,
+}
 
 
 def parse_json_object(raw_text: str) -> dict[str, Any]:
@@ -104,6 +113,7 @@ def normalize_graph(payload: dict[str, Any], max_depth: int) -> dict[str, Any]:
                 "condition": str(edge.get("condition", "")).strip(),
             }
         )
+    normalized_edges = _main_progression_edges(normalized_nodes, normalized_edges)
 
     if not any(node["is_terminal"] for node in normalized_nodes):
         normalized_nodes[-1]["is_terminal"] = True
@@ -156,6 +166,34 @@ def _normalize_node(node: Any, index: int) -> dict[str, Any]:
         "success_criteria": [str(item).strip() for item in success_criteria if str(item).strip()],
         "is_terminal": bool(node.get("is_terminal", False)),
     }
+
+
+def _main_progression_edges(nodes: list[dict[str, Any]], edges: list[dict[str, Any]]) -> list[dict[str, str]]:
+    edge_by_pair = {(edge["source"], edge["target"]): edge for edge in edges}
+    path_nodes = [
+        node
+        for node, _index in sorted(
+            ((node, index) for index, node in enumerate(nodes)),
+            key=lambda item: (
+                GRAPH_STAGE_ORDER.get(item[0]["type"], len(GRAPH_STAGE_ORDER)),
+                item[1],
+            ),
+        )
+        if node["type"] != "dead_end"
+    ]
+    main_edges = []
+    for source, target in zip(path_nodes, path_nodes[1:]):
+        existing = edge_by_pair.get((source["id"], target["id"]))
+        main_edges.append(
+            {
+                "id": (existing or {}).get("id") or f"edge_{source['id']}_{target['id']}",
+                "source": source["id"],
+                "target": target["id"],
+                "condition": (existing or {}).get("condition")
+                or "пользователь успешно выполняет задачу текущего этапа",
+            }
+        )
+    return main_edges
 
 
 def _score(value: Any, default: int) -> int:

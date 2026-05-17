@@ -50,6 +50,8 @@ def graph_prompt(scenario: Any, max_depth: int) -> str:
 Build a compact negotiation state graph for this scenario.
 Use {max_depth} as the preferred maximum number of non-terminal training stages.
 Calibrate the counterparty mood, intent, and objections by the counterparty stance.
+Keep the graph visually simple: one main progression path from opening to success.
+Do not create shortcut edges, cross-links, loops, or multiple alternative edges between the same stages.
 
 Scenario:
 {scenario_summary(scenario)}
@@ -82,6 +84,7 @@ Return this exact JSON object:
 }}
 
 Include a success terminal node and a dead_end terminal node.
+The dead_end node is a terminal fallback used by the app when the learner badly misses the stage; do not connect every stage to dead_end.
 Keep graph progression pedagogically useful for negotiation practice.
 """.strip()
 

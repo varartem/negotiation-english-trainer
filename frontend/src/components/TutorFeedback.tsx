@@ -7,11 +7,7 @@ interface TutorFeedbackProps {
   onShowIdealAnswer: () => void;
 }
 
-const sentimentLabels: Record<string, string> = {
-  positive: "позитивный",
-  neutral: "нейтральный",
-  negative: "негативный",
-};
+type Tone = "positive" | "neutral" | "negative";
 
 const emotionLabels: Record<string, string> = {
   anger: "злость",
@@ -45,6 +41,38 @@ const moveLabels: Record<string, string> = {
   relationship_building: "выстраивание контакта",
 };
 
+const emotionTones: Record<string, Tone> = {
+  anger: "negative",
+  fear: "negative",
+  sadness: "negative",
+  surprise: "neutral",
+  joy: "positive",
+  disgust: "negative",
+  neutral: "neutral",
+};
+
+const pressureTones: Record<string, Tone> = {
+  low: "positive",
+  medium: "neutral",
+  high: "negative",
+};
+
+const moveTones: Record<string, Tone> = {
+  price_objection: "negative",
+  discount_request: "negative",
+  competitor_comparison: "negative",
+  budget_objection: "negative",
+  authority_objection: "negative",
+  stalling: "negative",
+  buying_signal: "positive",
+  concession: "positive",
+  threat_to_leave: "negative",
+  need_clarification: "neutral",
+  closing_attempt: "positive",
+  value_explanation: "neutral",
+  relationship_building: "positive",
+};
+
 export default function TutorFeedback({ evaluation, idealAnswer, onRetry, onShowIdealAnswer }: TutorFeedbackProps) {
   return (
     <section className="panel feedback-panel">
@@ -60,11 +88,22 @@ export default function TutorFeedback({ evaluation, idealAnswer, onRetry, onShow
             <Score label="Этап" value={evaluation.stage_fit_score} />
           </div>
 
-          <div className="meta-row">
-            <span>{sentimentLabels[evaluation.general_sentiment] ?? evaluation.general_sentiment}</span>
-            <span>{emotionLabels[evaluation.emotion] ?? evaluation.emotion}</span>
-            <span>{pressureLabels[evaluation.pressure_level] ?? evaluation.pressure_level}</span>
-            <span>{moveLabels[evaluation.negotiation_move] ?? evaluation.negotiation_move}</span>
+          <div className="signal-list" aria-label="Сигналы диалога">
+            <Signal
+              label="Эмоция собеседника"
+              value={emotionLabels[evaluation.emotion] ?? evaluation.emotion}
+              tone={emotionTones[evaluation.emotion] ?? "neutral"}
+            />
+            <Signal
+              label="Давление"
+              value={pressureLabels[evaluation.pressure_level] ?? evaluation.pressure_level}
+              tone={pressureTones[evaluation.pressure_level] ?? "neutral"}
+            />
+            <Signal
+              label="Ход переговоров"
+              value={moveLabels[evaluation.negotiation_move] ?? evaluation.negotiation_move}
+              tone={moveTones[evaluation.negotiation_move] ?? "neutral"}
+            />
           </div>
 
           <FeedbackList title="Общее" items={evaluation.feedback_json.feedback ?? []} />
@@ -100,8 +139,10 @@ export default function TutorFeedback({ evaluation, idealAnswer, onRetry, onShow
 }
 
 function Score({ label, value }: { label: string; value: number }) {
+  const tone = getScoreTone(value);
+
   return (
-    <div className="score-card">
+    <div className={`score-card tone-${tone}`}>
       <span>{label}</span>
       <strong>
         {value}
@@ -109,6 +150,27 @@ function Score({ label, value }: { label: string; value: number }) {
       </strong>
     </div>
   );
+}
+
+function Signal({ label, value, tone }: { label: string; value: string; tone: Tone }) {
+  return (
+    <div className={`signal-card tone-${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function getScoreTone(value: number): Tone {
+  if (value >= 8) {
+    return "positive";
+  }
+
+  if (value >= 5) {
+    return "neutral";
+  }
+
+  return "negative";
 }
 
 function FeedbackList({ title, items }: { title: string; items: string[] }) {

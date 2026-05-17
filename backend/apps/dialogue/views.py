@@ -18,6 +18,15 @@ from .serializers import (
 
 
 SESSION_QUERYSET = DialogueSession.objects.select_related("scenario", "graph").prefetch_related("messages")
+STAGE_ORDER = {
+    "opening": 0,
+    "discovery": 1,
+    "value_explanation": 2,
+    "objection_handling": 3,
+    "price_negotiation": 4,
+    "closing": 5,
+    "success": 6,
+}
 
 
 class SessionListView(generics.ListAPIView):
@@ -244,6 +253,11 @@ def choose_next_node_id(session: DialogueSession, evaluation_data: dict) -> str:
         dead_end = find_node_by_type(session.graph.graph_json, "dead_end")
         return dead_end["id"] if dead_end else session.current_node_id
 
+    progression_nodes = ordered_progression_nodes(session.graph.graph_json)
+    for index, node in enumerate(progression_nodes):
+        if node["id"] == session.current_node_id and index + 1 < len(progression_nodes):
+            return progression_nodes[index + 1]["id"]
+
     edges = [
         edge
         for edge in session.graph.graph_json.get("edges", [])
@@ -265,3 +279,17 @@ def status_for_node(graph_json: dict, node_id: str) -> str:
 
 def find_node_by_type(graph_json: dict, node_type: str) -> dict | None:
     return next((item for item in graph_json.get("nodes", []) if item.get("type") == node_type), None)
+
+
+def ordered_progression_nodes(graph_json: dict) -> list[dict]:
+    return [
+        node
+        for _index, node in sorted(
+            enumerate(graph_json.get("nodes", [])),
+            key=lambda item: (
+                STAGE_ORDER.get(item[1].get("type"), len(STAGE_ORDER)),
+                item[0],
+            ),
+        )
+        if node.get("type") != "dead_end"
+    ]

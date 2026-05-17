@@ -145,19 +145,7 @@ class MlxLLMProvider:
         try:
             payload = parse_json_object(raw)
         except AIServiceError as exc:
-            repair_tokens = _json_repair_token_budget(SCENARIO_MAX_TOKENS, exc)
-            repaired = self._generate(
-                [
-                    *messages,
-                    {"role": "assistant", "content": raw[:4000]},
-                    {
-                        "role": "user",
-                        "content": "Repair your previous answer. Return only one valid JSON object with the requested schema.",
-                    },
-                ],
-                max_tokens=repair_tokens,
-            )
-            payload = parse_json_object(repaired)
+            payload = self._ensure_json_with_retries(messages, raw, SCENARIO_MAX_TOKENS, exc)
 
         normalized = normalize_scenario(payload, counterparty_stance=counterparty_stance)
         for field in SCENARIO_STREAM_FIELDS:
@@ -237,19 +225,49 @@ class MlxLLMProvider:
         try:
             return parse_json_object(raw)
         except AIServiceError as exc:
-            repair_tokens = _json_repair_token_budget(max_tokens, exc)
-            repaired = self._generate(
-                [
-                    *messages,
-                    {"role": "assistant", "content": raw[:4000]},
-                    {
-                        "role": "user",
-                        "content": "Repair your previous answer. Return only one valid JSON object with the requested schema.",
-                    },
-                ],
-                max_tokens=repair_tokens,
-            )
-            return parse_json_object(repaired)
+            return self._ensure_json_with_retries(messages, raw, max_tokens, exc)
+
+    def _ensure_json_with_retries(
+        self,
+        messages: list[dict[str, str]],
+        raw: str,
+        max_tokens: int,
+        initial_error: AIServiceError,
+        max_retries: int = 2,
+    ) -> dict[str, Any]:
+        payload = None
+        last_error = initial_error
+        retries = max_retries
+
+        while payload is None and retries > 0:
+            retries -= 1
+            try:
+                repair_tokens = _json_repair_token_budget(max_tokens, last_error)
+                repaired = self._generate(
+                    [
+                        *messages,
+                        {"role": "assistant", "content": raw[:4000]},
+                        {
+                            "role": "user",
+                            "content": "Repair your previous answer. Return only one valid JSON object with the requested schema.",
+                        },
+                    ],
+                    max_tokens=repair_tokens,
+                )
+                payload = parse_json_object(repaired)
+            except AIServiceError as exc:
+                last_error = exc
+                if retries > 0:
+                    try:
+                        fresh = self._generate(messages, max_tokens=max_tokens)
+                        payload = parse_json_object(fresh)
+                    except AIServiceError as exc2:
+                        last_error = exc2
+                        raw = fresh
+
+        if payload is None:
+            raise last_error
+        return payload
 
     def _chat_json_field_stream(
         self,
@@ -278,19 +296,7 @@ class MlxLLMProvider:
         try:
             payload = parse_json_object(raw)
         except AIServiceError as exc:
-            repair_tokens = _json_repair_token_budget(max_tokens, exc)
-            repaired = self._generate(
-                [
-                    *messages,
-                    {"role": "assistant", "content": raw[:4000]},
-                    {
-                        "role": "user",
-                        "content": "Repair your previous answer. Return only one valid JSON object with the requested schema.",
-                    },
-                ],
-                max_tokens=repair_tokens,
-            )
-            payload = parse_json_object(repaired)
+            payload = self._ensure_json_with_retries(messages, raw, max_tokens, exc)
 
         final_text = normalize_text_field(payload, field)
         if final_text.startswith(emitted):

@@ -5,7 +5,6 @@ import io
 import re
 import tempfile
 import threading
-import time
 import uuid
 from collections.abc import Callable
 from functools import lru_cache
@@ -43,10 +42,6 @@ SCENARIO_STREAM_FIELDS = (
 )
 
 
-def _log_llm_event(message: str) -> None:
-    print(f"[llm] {message}", flush=True)
-
-
 class MlxRuntime:
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -61,8 +56,6 @@ class MlxRuntime:
     def llm(self):
         with self._lock:
             if self._llm_model is None or self._llm_tokenizer is None:
-                started_at = time.perf_counter()
-                _log_llm_event(f"loading model: {settings.LLM_MODEL}")
                 try:
                     from mlx_lm import load
                 except Exception as exc:
@@ -72,9 +65,6 @@ class MlxRuntime:
                     self._llm_model, self._llm_tokenizer = load(settings.LLM_MODEL)
                 except Exception as exc:
                     raise AIServiceError(f"Не удалось загрузить LLM {settings.LLM_MODEL}: {exc}") from exc
-                _log_llm_event(f"model loaded in {time.perf_counter() - started_at:.2f}s")
-            else:
-                _log_llm_event("using cached model")
             return self._llm_model, self._llm_tokenizer
 
     def tts_model(self):
@@ -134,8 +124,6 @@ class MlxLLMProvider:
         ]
         raw_parts: list[str] = []
         emitted_by_field = {field: "" for field in SCENARIO_STREAM_FIELDS}
-        started_at = time.perf_counter()
-        first_delta_logged = False
 
         for segment in self._generate_stream(messages, max_tokens=SCENARIO_MAX_TOKENS):
             raw_parts.append(segment)
@@ -151,11 +139,6 @@ class MlxLLMProvider:
                 if not delta:
                     continue
 
-                if not first_delta_logged:
-                    first_delta_logged = True
-                    _log_llm_event(
-                        f"first streamed scenario field after {time.perf_counter() - started_at:.2f}s"
-                    )
                 emit_field_delta(field, delta)
 
         raw = "".join(raw_parts)
@@ -163,9 +146,6 @@ class MlxLLMProvider:
             payload = parse_json_object(raw)
         except AIServiceError as exc:
             repair_tokens = _json_repair_token_budget(SCENARIO_MAX_TOKENS, exc)
-            _log_llm_event(
-                f"streamed scenario JSON parse failed ({exc}); requesting JSON repair max_tokens={repair_tokens}"
-            )
             repaired = self._generate(
                 [
                     *messages,
@@ -199,31 +179,21 @@ class MlxLLMProvider:
         return normalize_graph(payload, max_depth=max_depth)
 
     def evaluate_user_reply(self, session, message_content: str) -> dict[str, Any]:
-        started_at = time.perf_counter()
-        _log_llm_event(f"evaluate_user_reply start session={session.id}")
         payload = self._chat_json(
             prompts.evaluation_prompt(session=session, message_content=message_content),
             max_tokens=1000,
         )
         normalized = normalize_evaluation(payload)
         if not normalized["better_version"]:
-            _log_llm_event("evaluation missed better_version; generating ideal answer")
             normalized["better_version"] = self.generate_ideal_answer(session)
-        _log_llm_event(f"evaluate_user_reply done in {time.perf_counter() - started_at:.2f}s")
         return normalized
 
     def generate_counterparty_reply(self, session, evaluation: dict[str, Any]) -> str:
-        started_at = time.perf_counter()
-        _log_llm_event(f"generate_counterparty_reply start session={session.id}")
         payload = self._chat_json(
             prompts.counterparty_prompt(session=session, evaluation=evaluation),
             max_tokens=300,
         )
-        reply = normalize_text_field(payload, "reply")
-        _log_llm_event(
-            f"generate_counterparty_reply done in {time.perf_counter() - started_at:.2f}s chars={len(reply)}"
-        )
-        return reply
+        return normalize_text_field(payload, "reply")
 
     def stream_counterparty_reply(
         self,
@@ -231,48 +201,32 @@ class MlxLLMProvider:
         evaluation: dict[str, Any],
         on_delta: Callable[[str], None],
     ) -> str:
-        started_at = time.perf_counter()
-        _log_llm_event(f"stream_counterparty_reply start session={session.id}")
         reply = self._chat_json_field_stream(
             prompts.counterparty_prompt(session=session, evaluation=evaluation),
             max_tokens=300,
             field="reply",
             on_delta=on_delta,
         )
-        _log_llm_event(
-            f"stream_counterparty_reply done in {time.perf_counter() - started_at:.2f}s chars={len(reply)}"
-        )
         return reply
 
     def generate_ideal_answer(self, session) -> str:
-        started_at = time.perf_counter()
-        _log_llm_event(f"generate_ideal_answer start session={session.id}")
         payload = self._chat_json(prompts.ideal_answer_prompt(session), max_tokens=300)
-        answer = normalize_text_field(payload, "ideal_answer")
-        _log_llm_event(f"generate_ideal_answer done in {time.perf_counter() - started_at:.2f}s")
-        return answer
+        return normalize_text_field(payload, "ideal_answer")
 
     def translate_vocabulary_phrase(self, phrase: str, context: str = "") -> str:
-        started_at = time.perf_counter()
         cleaned_phrase = phrase.strip()
-        _log_llm_event(f"translate_vocabulary_phrase start chars={len(cleaned_phrase)}")
         payload = self._chat_json(
             prompts.vocabulary_translation_prompt(cleaned_phrase, context),
             max_tokens=VOCABULARY_TRANSLATION_MAX_TOKENS,
         )
         translation = normalize_text_field(payload, "translation")
         if context and _looks_like_context_leak(cleaned_phrase, translation):
-            _log_llm_event("vocabulary translation looks too broad; retrying without context")
             payload = self._chat_json(
                 prompts.vocabulary_translation_prompt(cleaned_phrase),
                 max_tokens=VOCABULARY_TRANSLATION_MAX_TOKENS,
             )
             translation = normalize_text_field(payload, "translation")
-        translation = translation[:255]
-        _log_llm_event(
-            f"translate_vocabulary_phrase done in {time.perf_counter() - started_at:.2f}s chars={len(translation)}"
-        )
-        return translation
+        return translation[:255]
 
     def _chat_json(self, user_prompt: str, max_tokens: int) -> dict[str, Any]:
         messages = [
@@ -284,9 +238,6 @@ class MlxLLMProvider:
             return parse_json_object(raw)
         except AIServiceError as exc:
             repair_tokens = _json_repair_token_budget(max_tokens, exc)
-            _log_llm_event(
-                f"json parse failed ({exc}); requesting JSON repair max_tokens={repair_tokens}"
-            )
             repaired = self._generate(
                 [
                     *messages,
@@ -314,8 +265,6 @@ class MlxLLMProvider:
         ]
         raw_parts: list[str] = []
         emitted = ""
-        started_at = time.perf_counter()
-        first_delta_logged = False
         for segment in self._generate_stream(messages, max_tokens=max_tokens):
             raw_parts.append(segment)
             field_prefix = _json_string_field_prefix("".join(raw_parts), field)
@@ -323,11 +272,6 @@ class MlxLLMProvider:
                 delta = field_prefix[len(emitted) :]
                 emitted = field_prefix
                 if delta:
-                    if not first_delta_logged:
-                        first_delta_logged = True
-                        _log_llm_event(
-                            f"first streamed {field} delta after {time.perf_counter() - started_at:.2f}s"
-                        )
                     on_delta(delta)
 
         raw = "".join(raw_parts)
@@ -335,9 +279,6 @@ class MlxLLMProvider:
             payload = parse_json_object(raw)
         except AIServiceError as exc:
             repair_tokens = _json_repair_token_budget(max_tokens, exc)
-            _log_llm_event(
-                f"streamed JSON parse failed ({exc}); requesting JSON repair max_tokens={repair_tokens}"
-            )
             repaired = self._generate(
                 [
                     *messages,
@@ -383,9 +324,7 @@ class MlxLLMProvider:
         )
         try:
             with self.runtime.llm_inference_lock:
-                started_at = time.perf_counter()
-                _log_llm_event(f"generate start max_tokens={max_tokens}")
-                text = generate(
+                return generate(
                     model,
                     tokenizer,
                     prompt=prompt,
@@ -393,10 +332,6 @@ class MlxLLMProvider:
                     verbose=False,
                     sampler=sampler,
                 ).strip()
-                _log_llm_event(
-                    f"generate done in {time.perf_counter() - started_at:.2f}s chars={len(text)}"
-                )
-                return text
         except Exception as exc:
             raise AIServiceError(f"LLM {settings.LLM_MODEL} не смогла сгенерировать ответ: {exc}") from exc
 
@@ -423,9 +358,6 @@ class MlxLLMProvider:
         )
         try:
             with self.runtime.llm_inference_lock:
-                started_at = time.perf_counter()
-                _log_llm_event(f"stream_generate start max_tokens={max_tokens}")
-                segments = 0
                 for response in stream_generate(
                     model,
                     tokenizer,
@@ -434,11 +366,7 @@ class MlxLLMProvider:
                     sampler=sampler,
                 ):
                     if response.text:
-                        segments += 1
                         yield response.text
-                _log_llm_event(
-                    f"stream_generate done in {time.perf_counter() - started_at:.2f}s segments={segments}"
-                )
         except Exception as exc:
             raise AIServiceError(f"LLM {settings.LLM_MODEL} не смогла сгенерировать ответ: {exc}") from exc
 

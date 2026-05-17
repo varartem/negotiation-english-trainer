@@ -1,5 +1,3 @@
-import time
-
 from rest_framework import generics, status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -20,10 +18,6 @@ from .serializers import (
 
 
 SESSION_QUERYSET = DialogueSession.objects.select_related("scenario", "graph").prefetch_related("messages")
-
-
-def _log_dialogue_event(session_id: int, message: str) -> None:
-    print(f"[dialogue:{session_id}] {message}", flush=True)
 
 
 class SessionListView(generics.ListAPIView):
@@ -85,24 +79,12 @@ def send_message_progress(request, session_id: int):
     serializer = UserMessageCreateSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     content = serializer.validated_data["content"]
-    request_started_at = time.perf_counter()
-    _log_dialogue_event(session_id, f"message request accepted chars={len(content)}")
 
     def worker(emit):
-        _log_dialogue_event(session_id, "worker started")
         emit({"type": "progress", "progress": 8, "stage": "queued", "detail": "Реплика поставлена в очередь."})
         session = DialogueSession.objects.select_related("scenario", "graph").get(pk=session_id)
-        _log_dialogue_event(session_id, "session loaded")
-        delta_count = 0
 
         def emit_delta(delta: str) -> None:
-            nonlocal delta_count
-            if delta_count == 0:
-                _log_dialogue_event(
-                    session_id,
-                    f"first assistant delta after {time.perf_counter() - request_started_at:.2f}s",
-                )
-            delta_count += 1
             emit(
                 {
                     "type": "assistant_delta",
@@ -198,8 +180,6 @@ def create_dialogue_turn(
                 }
             )
 
-    started_at = time.perf_counter()
-    _log_dialogue_event(session.id, f"turn started chars={len(content)}")
     emit_progress(14, "saving_user_message", "Сохраняем вашу реплику.")
     user_message = Message.objects.create(
         session=session,
@@ -207,25 +187,14 @@ def create_dialogue_turn(
         node_id=session.current_node_id,
         content=content,
     )
-    _log_dialogue_event(session.id, f"user message saved id={user_message.id}")
 
     llm = LLMService()
     emit_progress(32, "evaluating_reply", "Оцениваем реплику и выбираем следующий этап.")
-    phase_started_at = time.perf_counter()
-    _log_dialogue_event(session.id, "evaluation start")
     evaluation_data = llm.evaluate_user_reply(session=session, message_content=user_message.content)
-    _log_dialogue_event(
-        session.id,
-        f"evaluation done in {time.perf_counter() - phase_started_at:.2f}s "
-        f"strategy={evaluation_data['strategy_score']} english={evaluation_data['english_score']} "
-        f"stage_fit={evaluation_data['stage_fit_score']}",
-    )
     next_node_id = choose_next_node_id(session, evaluation_data)
-    _log_dialogue_event(session.id, f"next node selected: {session.current_node_id} -> {next_node_id}")
     session.current_node_id = next_node_id
     session.status = status_for_node(session.graph.graph_json, next_node_id)
     session.save(update_fields=["current_node_id", "status", "updated_at"])
-    _log_dialogue_event(session.id, f"session state saved status={session.status}")
 
     evaluation = Evaluation.objects.create(
         message=user_message,
@@ -243,11 +212,8 @@ def create_dialogue_turn(
         },
         better_version=evaluation_data["better_version"],
     )
-    _log_dialogue_event(session.id, f"evaluation saved id={evaluation.id}")
 
     emit_progress(72, "counterparty_reply", "Собеседник отвечает.")
-    phase_started_at = time.perf_counter()
-    _log_dialogue_event(session.id, "counterparty generation start")
     if emit_assistant_delta is None:
         assistant_content = llm.generate_counterparty_reply(session=session, evaluation=evaluation_data)
     else:
@@ -256,11 +222,6 @@ def create_dialogue_turn(
             evaluation=evaluation_data,
             on_delta=emit_assistant_delta,
         )
-    _log_dialogue_event(
-        session.id,
-        f"counterparty generation done in {time.perf_counter() - phase_started_at:.2f}s "
-        f"chars={len(assistant_content)}",
-    )
 
     assistant_message = Message.objects.create(
         session=session,
@@ -268,10 +229,8 @@ def create_dialogue_turn(
         node_id=session.current_node_id,
         content=assistant_content,
     )
-    _log_dialogue_event(session.id, f"assistant message saved id={assistant_message.id}")
 
     emit_progress(96, "saving_counterparty_reply", "Сохраняем ответ собеседника.")
-    _log_dialogue_event(session.id, f"turn done in {time.perf_counter() - started_at:.2f}s")
     return {
         "session": DialogueSessionSerializer(session).data,
         "user_message": MessageSerializer(user_message).data,

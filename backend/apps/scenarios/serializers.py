@@ -16,7 +16,7 @@ class ScenarioSerializer(serializers.ModelSerializer):
             "counterparty_role",
             "counterparty_description",
             "negotiation_goal",
-            "difficulty",
+            "counterparty_stance",
             "extra_context",
             "is_random",
             "created_at",

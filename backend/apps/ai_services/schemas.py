@@ -32,7 +32,7 @@ SCENARIO_FIELDS = {
     "counterparty_role",
     "counterparty_description",
     "negotiation_goal",
-    "difficulty",
+    "counterparty_stance",
     "extra_context",
 }
 
@@ -59,13 +59,16 @@ def parse_json_object(raw_text: str) -> dict[str, Any]:
     return loaded
 
 
-def normalize_scenario(payload: dict[str, Any], difficulty: str) -> dict[str, Any]:
+def normalize_scenario(payload: dict[str, Any], counterparty_stance: str) -> dict[str, Any]:
+    if "counterparty_stance" not in payload and "difficulty" in payload:
+        payload = {**payload, "counterparty_stance": payload["difficulty"]}
+
     missing = SCENARIO_FIELDS - payload.keys()
     if missing:
         raise AIServiceError(f"В сценарии нет обязательных полей: {', '.join(sorted(missing))}.")
 
     normalized = {field: str(payload.get(field, "")).strip() for field in SCENARIO_FIELDS}
-    normalized["difficulty"] = difficulty
+    normalized["counterparty_stance"] = counterparty_stance
     return normalized
 
 

@@ -1,7 +1,7 @@
 import type {
+  CounterpartyStance,
   DialogueSession,
   DialogueSessionSummary,
-  Difficulty,
   Message,
   NegotiationGraph,
   Scenario,
@@ -136,10 +136,10 @@ export const api = {
     });
   },
 
-  createRandomScenario(difficulty: Difficulty) {
+  createRandomScenario(counterpartyStance: CounterpartyStance) {
     return request<Scenario>("/scenarios/random/", {
       method: "POST",
-      body: JSON.stringify({ difficulty }),
+      body: JSON.stringify({ counterparty_stance: counterpartyStance }),
     });
   },
 

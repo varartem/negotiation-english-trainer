@@ -12,11 +12,19 @@ JSON_SYSTEM_PROMPT = (
 )
 
 
-def scenario_prompt(difficulty: str) -> str:
+COUNTERPARTY_STANCE_GUIDE = {
+    "open": "The counterparty is cooperative, willing to share context, and interested in finding a workable deal.",
+    "neutral": "The counterparty is undecided, cautious, and needs evidence before becoming engaged.",
+    "resistant": "The counterparty is skeptical, guarded, and reluctant to continue, but can still be won over by strong listening and value.",
+}
+
+
+def scenario_prompt(counterparty_stance: str) -> str:
     return f"""
 Create one realistic B2B sales negotiation training scenario.
 The user trains English, but UI explanations may be in Russian.
-Difficulty: {difficulty}.
+Counterparty stance: {counterparty_stance}.
+Stance guidance: {_counterparty_stance_guidance(counterparty_stance)}
 
 Return this exact JSON object:
 {{
@@ -28,7 +36,7 @@ Return this exact JSON object:
   "counterparty_role": "short Russian role",
   "counterparty_description": "string in Russian",
   "negotiation_goal": "string in Russian",
-  "difficulty": "{difficulty}",
+  "counterparty_stance": "{counterparty_stance}",
   "extra_context": "string in Russian"
 }}
 """.strip()
@@ -38,6 +46,7 @@ def graph_prompt(scenario: Any, max_depth: int) -> str:
     return f"""
 Build a compact negotiation state graph for this scenario.
 Use {max_depth} as the preferred maximum number of non-terminal training stages.
+Calibrate the counterparty mood, intent, and objections by the counterparty stance.
 
 Scenario:
 {scenario_summary(scenario)}
@@ -118,6 +127,7 @@ def counterparty_prompt(session: Any, evaluation: dict[str, Any]) -> str:
 Roleplay the counterparty in the negotiation.
 Stay in character and answer in natural spoken English.
 Be concise: one or two sentences.
+Calibrate cooperativeness by the counterparty stance: open should be constructive, neutral should require proof, resistant should push back without becoming impossible.
 
 Scenario:
 {scenario_summary(session.scenario)}
@@ -164,10 +174,17 @@ def scenario_summary(scenario: Any) -> str:
             f"Learner role: {scenario.user_role}",
             f"Counterparty role: {scenario.counterparty_role}. {scenario.counterparty_description}",
             f"Goal: {scenario.negotiation_goal}",
-            f"Difficulty: {scenario.difficulty}",
+            (
+                f"Counterparty stance: {scenario.counterparty_stance} "
+                f"({_counterparty_stance_guidance(scenario.counterparty_stance)})"
+            ),
             f"Extra context: {scenario.extra_context}",
         ]
     )
+
+
+def _counterparty_stance_guidance(counterparty_stance: str) -> str:
+    return COUNTERPARTY_STANCE_GUIDE.get(counterparty_stance, COUNTERPARTY_STANCE_GUIDE["neutral"])
 
 
 def current_node(session: Any) -> dict[str, Any]:

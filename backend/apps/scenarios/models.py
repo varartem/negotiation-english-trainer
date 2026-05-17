@@ -2,14 +2,14 @@ from django.db import models
 
 
 class Scenario(models.Model):
-    DIFFICULTY_EASY = "easy"
-    DIFFICULTY_MEDIUM = "medium"
-    DIFFICULTY_HARD = "hard"
+    COUNTERPARTY_STANCE_OPEN = "open"
+    COUNTERPARTY_STANCE_NEUTRAL = "neutral"
+    COUNTERPARTY_STANCE_RESISTANT = "resistant"
 
-    DIFFICULTY_CHOICES = [
-        (DIFFICULTY_EASY, "Easy"),
-        (DIFFICULTY_MEDIUM, "Medium"),
-        (DIFFICULTY_HARD, "Hard"),
+    COUNTERPARTY_STANCE_CHOICES = [
+        (COUNTERPARTY_STANCE_OPEN, "Open to negotiations"),
+        (COUNTERPARTY_STANCE_NEUTRAL, "Neutral"),
+        (COUNTERPARTY_STANCE_RESISTANT, "Not open to dialogue"),
     ]
 
     company_name = models.CharField(max_length=255)
@@ -20,10 +20,10 @@ class Scenario(models.Model):
     counterparty_role = models.CharField(max_length=255)
     counterparty_description = models.TextField(blank=True)
     negotiation_goal = models.TextField()
-    difficulty = models.CharField(
+    counterparty_stance = models.CharField(
         max_length=20,
-        choices=DIFFICULTY_CHOICES,
-        default=DIFFICULTY_MEDIUM,
+        choices=COUNTERPARTY_STANCE_CHOICES,
+        default=COUNTERPARTY_STANCE_NEUTRAL,
     )
     extra_context = models.TextField(blank=True)
     is_random = models.BooleanField(default=False)

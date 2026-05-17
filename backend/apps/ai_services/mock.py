@@ -8,7 +8,22 @@ from .schemas import NEGOTIATION_MOVES
 
 @dataclass
 class MockLLMProvider:
-    def generate_random_scenario(self, difficulty: str = "medium") -> dict[str, Any]:
+    def generate_random_scenario(self, counterparty_stance: str = "neutral") -> dict[str, Any]:
+        stance_details = {
+            "open": {
+                "description": "Открытый к обсуждению, задаёт вопросы и готов искать взаимовыгодное решение.",
+                "context": "Собеседник уже видит потенциальную ценность, но хочет согласовать условия пилота.",
+            },
+            "neutral": {
+                "description": "Осторожный, чувствительный к цене и заинтересованный в измеримом ROI.",
+                "context": "Собеседник сравнивает ваше предложение с более дешёвым конкурентом.",
+            },
+            "resistant": {
+                "description": "Скептичный, занятой и не уверен, что разговор стоит продолжать.",
+                "context": "Собеседник считает, что похожие решения уже не дали результата, и не хочет тратить время.",
+            },
+        }.get(counterparty_stance, {})
+
         return {
             "company_name": "BrightPath Analytics",
             "company_description": "B2B SaaS-компания, которая помогает ритейлерам прогнозировать спрос.",
@@ -16,10 +31,16 @@ class MockLLMProvider:
             "product_description": "90-дневный пилот по прогнозированию с доступом к дашборду и поддержкой онбординга.",
             "user_role": "Account Executive",
             "counterparty_role": "Менеджер по закупкам",
-            "counterparty_description": "Осторожный, чувствительный к цене и заинтересованный в измеримом ROI.",
+            "counterparty_description": stance_details.get(
+                "description",
+                "Осторожный, чувствительный к цене и заинтересованный в измеримом ROI.",
+            ),
             "negotiation_goal": "Договориться о платном пилоте без ранней скидки.",
-            "difficulty": difficulty,
-            "extra_context": "Собеседник сравнивает ваше предложение с более дешёвым конкурентом.",
+            "counterparty_stance": counterparty_stance,
+            "extra_context": stance_details.get(
+                "context",
+                "Собеседник сравнивает ваше предложение с более дешёвым конкурентом.",
+            ),
         }
 
     def generate_graph(self, scenario, max_depth: int = 6) -> dict[str, Any]:
@@ -230,6 +251,7 @@ class MockLLMProvider:
 
     def generate_counterparty_reply(self, session, evaluation: dict[str, Any]) -> str:
         node_type = self._current_node(session).get("type")
+        counterparty_stance = getattr(session.scenario, "counterparty_stance", "neutral")
         if session.status == "success":
             return "That works for me. Please send the pilot agreement and proposed kickoff date."
         if session.status == "dead_end":
@@ -244,7 +266,12 @@ class MockLLMProvider:
             "price_negotiation": "I could support this if the price is tied to clear milestones and a defined next step.",
             "closing": "Yes, send me the summary and I will review it with finance this week.",
         }
-        return replies.get(node_type, "Please continue.")
+        reply = replies.get(node_type, "Please continue.")
+        if counterparty_stance == "open":
+            return reply.replace("but", "and", 1)
+        if counterparty_stance == "resistant" and node_type not in {"closing"}:
+            return f"I am still not convinced this is worth our time. {reply}"
+        return reply
 
     def stream_counterparty_reply(self, session, evaluation: dict[str, Any], on_delta) -> str:
         reply = self.generate_counterparty_reply(session=session, evaluation=evaluation)

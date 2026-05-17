@@ -1,5 +1,5 @@
 import type { ScenarioPayload } from "../api/client";
-import type { Difficulty } from "../types";
+import type { CounterpartyStance } from "../types";
 import AutoResizeTextarea from "./AutoResizeTextarea";
 
 interface ScenarioFormProps {
@@ -40,11 +40,14 @@ export default function ScenarioForm({ value, onChange, onSubmit, disabled }: Sc
       </div>
 
       <label className="field">
-        <span>Сложность</span>
-        <select value={value.difficulty} onChange={(event) => setField("difficulty", event.target.value as Difficulty)}>
-          <option value="easy">Легко</option>
-          <option value="medium">Средне</option>
-          <option value="hard">Сложно</option>
+        <span>Настрой собеседника</span>
+        <select
+          value={value.counterparty_stance}
+          onChange={(event) => setField("counterparty_stance", event.target.value as CounterpartyStance)}
+        >
+          <option value="open">Открыт к переговорам</option>
+          <option value="neutral">Нейтральный</option>
+          <option value="resistant">Не настроен на диалог</option>
         </select>
       </label>
 

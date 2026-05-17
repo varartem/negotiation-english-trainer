@@ -1,4 +1,4 @@
-export type Difficulty = "easy" | "medium" | "hard";
+export type CounterpartyStance = "open" | "neutral" | "resistant";
 export type SessionStatus = "active" | "success" | "dead_end" | "abandoned";
 export type MessageRole = "user" | "assistant" | "tutor" | "system";
 
@@ -12,7 +12,7 @@ export interface Scenario {
   counterparty_role: string;
   counterparty_description: string;
   negotiation_goal: string;
-  difficulty: Difficulty;
+  counterparty_stance: CounterpartyStance;
   extra_context: string;
   is_random: boolean;
   created_at: string;

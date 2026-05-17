@@ -47,8 +47,8 @@ class LLMService:
     def _provider(self):
         return _llm_provider(_provider_name(self.provider, settings.LLM_PROVIDER))
 
-    def generate_random_scenario(self, difficulty: str = "medium") -> dict[str, Any]:
-        return self._provider.generate_random_scenario(difficulty=difficulty)
+    def generate_random_scenario(self, counterparty_stance: str = "neutral") -> dict[str, Any]:
+        return self._provider.generate_random_scenario(counterparty_stance=counterparty_stance)
 
     def generate_graph(self, scenario, max_depth: int = 6) -> dict[str, Any]:
         return self._provider.generate_graph(scenario=scenario, max_depth=max_depth)

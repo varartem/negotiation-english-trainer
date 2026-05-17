@@ -96,9 +96,9 @@ class MlxLLMProvider:
     def __init__(self, runtime: MlxRuntime | None = None) -> None:
         self.runtime = runtime or get_mlx_runtime()
 
-    def generate_random_scenario(self, difficulty: str = "medium") -> dict[str, Any]:
-        payload = self._chat_json(prompts.scenario_prompt(difficulty), max_tokens=900)
-        return normalize_scenario(payload, difficulty=difficulty)
+    def generate_random_scenario(self, counterparty_stance: str = "neutral") -> dict[str, Any]:
+        payload = self._chat_json(prompts.scenario_prompt(counterparty_stance), max_tokens=900)
+        return normalize_scenario(payload, counterparty_stance=counterparty_stance)
 
     def generate_graph(self, scenario, max_depth: int = 6) -> dict[str, Any]:
         payload = self._chat_json(prompts.graph_prompt(scenario, max_depth), max_tokens=1800)

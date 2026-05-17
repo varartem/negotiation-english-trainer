@@ -16,7 +16,7 @@ const initialScenario: ScenarioPayload = {
   counterparty_role: "Менеджер по закупкам",
   counterparty_description: "Аналитичный, осторожный и ориентированный на ROI.",
   negotiation_goal: "Договориться о платном пилоте без безусловной скидки.",
-  difficulty: "medium",
+  counterparty_stance: "neutral",
   extra_context: "Собеседник сравнивает ваше предложение с более дешёвым конкурентом.",
 };
 
@@ -49,7 +49,7 @@ export default function ScenarioPage({ onSessionReady }: ScenarioPageProps) {
     setIsLoading(true);
     setError(null);
     try {
-      const created = await api.createRandomScenario("medium");
+      const created = await api.createRandomScenario("neutral");
       await bootTraining(created.id);
     } catch (error) {
       setError(error instanceof Error ? error.message : "Не удалось создать случайный сценарий");

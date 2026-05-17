@@ -255,6 +255,13 @@ export const api = {
     });
   },
 
+  updateVocabulary(itemId: number, payload: Partial<Pick<VocabularyItem, "phrase" | "translation" | "context">>) {
+    return request<VocabularyItem>(`/vocabulary/${itemId}/`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
   deleteVocabulary(itemId: number) {
     return request<void>(`/vocabulary/${itemId}/`, {
       method: "DELETE",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import re
 import tempfile
 import threading
 import time
@@ -28,6 +29,7 @@ JSON_REPAIR_MIN_TOKENS = 1200
 JSON_INCOMPLETE_REPAIR_MULTIPLIER = 2
 SCENARIO_MAX_TOKENS = 1200
 GRAPH_MAX_TOKENS = 3200
+VOCABULARY_TRANSLATION_MAX_TOKENS = 200
 SCENARIO_STREAM_FIELDS = (
     "company_name",
     "company_description",
@@ -249,6 +251,28 @@ class MlxLLMProvider:
         answer = normalize_text_field(payload, "ideal_answer")
         _log_llm_event(f"generate_ideal_answer done in {time.perf_counter() - started_at:.2f}s")
         return answer
+
+    def translate_vocabulary_phrase(self, phrase: str, context: str = "") -> str:
+        started_at = time.perf_counter()
+        cleaned_phrase = phrase.strip()
+        _log_llm_event(f"translate_vocabulary_phrase start chars={len(cleaned_phrase)}")
+        payload = self._chat_json(
+            prompts.vocabulary_translation_prompt(cleaned_phrase, context),
+            max_tokens=VOCABULARY_TRANSLATION_MAX_TOKENS,
+        )
+        translation = normalize_text_field(payload, "translation")
+        if context and _looks_like_context_leak(cleaned_phrase, translation):
+            _log_llm_event("vocabulary translation looks too broad; retrying without context")
+            payload = self._chat_json(
+                prompts.vocabulary_translation_prompt(cleaned_phrase),
+                max_tokens=VOCABULARY_TRANSLATION_MAX_TOKENS,
+            )
+            translation = normalize_text_field(payload, "translation")
+        translation = translation[:255]
+        _log_llm_event(
+            f"translate_vocabulary_phrase done in {time.perf_counter() - started_at:.2f}s chars={len(translation)}"
+        )
+        return translation
 
     def _chat_json(self, user_prompt: str, max_tokens: int) -> dict[str, Any]:
         messages = [
@@ -486,6 +510,16 @@ def _json_repair_token_budget(max_tokens: int, error: AIServiceError) -> int:
     if "незавершённый JSON" in str(error):
         return max(max_tokens * JSON_INCOMPLETE_REPAIR_MULTIPLIER, JSON_REPAIR_MIN_TOKENS)
     return max(max_tokens, JSON_REPAIR_MIN_TOKENS)
+
+
+def _looks_like_context_leak(phrase: str, translation: str) -> bool:
+    phrase_word_count = len(re.findall(r"[A-Za-z0-9']+", phrase))
+    translation_word_count = len(re.findall(r"[\wЁёА-Яа-я]+", translation))
+    if phrase_word_count == 0 or translation_word_count == 0:
+        return False
+
+    max_expected_words = max(round(phrase_word_count * 1.8) + 3, 9)
+    return translation_word_count > max_expected_words
 
 
 class MlxSTTProvider:

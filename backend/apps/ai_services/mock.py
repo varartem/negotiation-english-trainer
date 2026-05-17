@@ -43,6 +43,16 @@ class MockLLMProvider:
             ),
         }
 
+    def translate_vocabulary_phrase(self, phrase: str, context: str = "") -> str:
+        known_translations = {
+            "could you clarify the budget constraints?": "Могли бы вы уточнить бюджетные ограничения?",
+            "what would success look like for you?": "Как для вас будет выглядеть успешный результат?",
+            "let's align on the next step.": "Давайте согласуем следующий шаг.",
+            "i understand your concern.": "Я понимаю ваше опасение.",
+        }
+        normalized = phrase.strip().lower()
+        return known_translations.get(normalized, f"Перевод фразы: {phrase.strip()}")
+
     def generate_graph(self, scenario, max_depth: int = 6) -> dict[str, Any]:
         return {
             "nodes": [

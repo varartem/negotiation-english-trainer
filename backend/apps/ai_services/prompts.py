@@ -172,6 +172,36 @@ Return this exact JSON object:
 """.strip()
 
 
+def vocabulary_translation_prompt(phrase: str, context: str = "") -> str:
+    context_text = context.strip() or "No additional context."
+    return f"""
+Translate ONLY the selected English phrase into natural Russian for a learner's vocabulary.
+The selected phrase is the complete translation target, even if it is a fragment of a longer sentence.
+Use the context only to choose the right meaning and tone.
+Never translate, summarize, or include words that appear only in the context.
+Keep the translation concise and suitable for a business negotiation setting.
+
+Example:
+Selected phrase: I appreciate the integrated approach
+Context: I appreciate the integrated approach, but seeing concrete evidence is still non-negotiable.
+Correct translation: Я ценю комплексный подход.
+Incorrect translation: Я ценю комплексный подход, но конкретные доказательства остаются обязательным условием.
+
+Selected phrase to translate:
+<selected_phrase>
+{phrase}
+</selected_phrase>
+
+Context for disambiguation only:
+<context_not_for_translation>
+{context_text}
+</context_not_for_translation>
+
+Return this exact JSON object:
+{{"translation": "Russian translation"}}
+""".strip()
+
+
 def scenario_summary(scenario: Any) -> str:
     return "\n".join(
         [

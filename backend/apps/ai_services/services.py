@@ -111,6 +111,9 @@ class LLMService:
     def generate_ideal_answer(self, session) -> str:
         return self._provider.generate_ideal_answer(session=session)
 
+    def translate_vocabulary_phrase(self, phrase: str, context: str = "") -> str:
+        return self._provider.translate_vocabulary_phrase(phrase=phrase, context=context)
+
 
 @dataclass
 class STTService:

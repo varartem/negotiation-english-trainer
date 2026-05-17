@@ -44,6 +44,7 @@ export default function ScenarioForm({ value, onChange, onSubmit, disabled }: Sc
         <select
           value={value.counterparty_stance}
           onChange={(event) => setField("counterparty_stance", event.target.value as CounterpartyStance)}
+          disabled={disabled}
         >
           <option value="open">Открыт к переговорам</option>
           <option value="neutral">Нейтральный</option>
@@ -60,9 +61,14 @@ export default function ScenarioForm({ value, onChange, onSubmit, disabled }: Sc
                 value={String(value[field.key])}
                 onChange={(event) => setField(field.key, event.target.value)}
                 rows={2}
+                disabled={disabled}
               />
             ) : (
-              <input value={String(value[field.key])} onChange={(event) => setField(field.key, event.target.value)} />
+              <input
+                value={String(value[field.key])}
+                onChange={(event) => setField(field.key, event.target.value)}
+                disabled={disabled}
+              />
             )}
           </label>
         ))}

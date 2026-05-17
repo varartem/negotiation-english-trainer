@@ -12,11 +12,12 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:800
 const API_ORIGIN = API_BASE_URL.replace(/\/api$/, "");
 
 export interface ModelProgressEvent<TPayload = unknown> {
-  type: "progress" | "done" | "error" | "assistant_delta";
+  type: "progress" | "done" | "error" | "assistant_delta" | "scenario_field_delta";
   progress: number;
   stage: string;
   detail?: string;
   delta?: string;
+  field?: string;
   message?: string;
   payload?: TPayload;
 }
@@ -158,6 +159,17 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ counterparty_stance: counterpartyStance }),
     });
+  },
+
+  createRandomScenarioProgress(counterpartyStance: CounterpartyStance, onProgress?: ModelProgressHandler) {
+    return streamRequest<Scenario>(
+      "/scenarios/random/progress/",
+      {
+        method: "POST",
+        body: JSON.stringify({ counterparty_stance: counterpartyStance }),
+      },
+      onProgress,
+    );
   },
 
   generateGraph(scenarioId: number) {

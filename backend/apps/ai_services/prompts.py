@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from typing import Any
 
+from django.conf import settings
+
 from .schemas import NEGOTIATION_MOVES
 
 
 JSON_SYSTEM_PROMPT = (
     "You are the AI core of a negotiation English training app. "
     "Return only valid JSON that matches the requested schema. "
+    "Follow the language instructions in the user prompt exactly for every JSON string. "
     "Do not include markdown, comments, prose, or hidden reasoning."
 )
 
@@ -86,8 +89,11 @@ Keep graph progression pedagogically useful for negotiation practice.
 def evaluation_prompt(session: Any, message_content: str) -> str:
     node = current_node(session)
     moves = ", ".join(sorted(NEGOTIATION_MOVES))
+    feedback_language = _evaluation_feedback_language()
     return f"""
 Evaluate the learner's English negotiation reply.
+Return learner-facing analysis in {feedback_language}: feedback, language_feedback, and strategy_feedback.
+Use English only for better_version and for short quoted examples of the learner's English when necessary.
 
 Scenario:
 {scenario_summary(session.scenario)}
@@ -110,9 +116,9 @@ Return this exact JSON object:
   "strategy_score": 1,
   "english_score": 1,
   "stage_fit_score": 1,
-  "feedback": ["Russian concise feedback"],
-  "language_feedback": ["Russian English-language feedback"],
-  "strategy_feedback": ["Russian negotiation strategy feedback"],
+  "feedback": ["concise feedback in {feedback_language}"],
+  "language_feedback": ["feedback in {feedback_language} about English wording, grammar, tone, and clarity"],
+  "strategy_feedback": ["negotiation strategy feedback in {feedback_language}"],
   "better_version": "one improved learner reply in natural English"
 }}
 
@@ -185,6 +191,10 @@ def scenario_summary(scenario: Any) -> str:
 
 def _counterparty_stance_guidance(counterparty_stance: str) -> str:
     return COUNTERPARTY_STANCE_GUIDE.get(counterparty_stance, COUNTERPARTY_STANCE_GUIDE["neutral"])
+
+
+def _evaluation_feedback_language() -> str:
+    return str(getattr(settings, "EVALUATION_FEEDBACK_LANGUAGE", "Russian")).strip() or "Russian"
 
 
 def current_node(session: Any) -> dict[str, Any]:

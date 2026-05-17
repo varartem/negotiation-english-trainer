@@ -28,6 +28,17 @@ JSON_REPAIR_MIN_TOKENS = 1200
 JSON_INCOMPLETE_REPAIR_MULTIPLIER = 2
 SCENARIO_MAX_TOKENS = 1200
 GRAPH_MAX_TOKENS = 3200
+SCENARIO_STREAM_FIELDS = (
+    "company_name",
+    "company_description",
+    "product_name",
+    "product_description",
+    "user_role",
+    "counterparty_role",
+    "counterparty_description",
+    "negotiation_goal",
+    "extra_context",
+)
 
 
 def _log_llm_event(message: str) -> None:
@@ -108,6 +119,75 @@ class MlxLLMProvider:
             max_tokens=SCENARIO_MAX_TOKENS,
         )
         return normalize_scenario(payload, counterparty_stance=counterparty_stance)
+
+    def stream_random_scenario(
+        self,
+        counterparty_stance: str = "neutral",
+        on_field_delta: Callable[[str, str], None] | None = None,
+    ) -> dict[str, Any]:
+        emit_field_delta = on_field_delta or (lambda _field, _delta: None)
+        messages = [
+            {"role": "system", "content": prompts.JSON_SYSTEM_PROMPT},
+            {"role": "user", "content": prompts.scenario_prompt(counterparty_stance)},
+        ]
+        raw_parts: list[str] = []
+        emitted_by_field = {field: "" for field in SCENARIO_STREAM_FIELDS}
+        started_at = time.perf_counter()
+        first_delta_logged = False
+
+        for segment in self._generate_stream(messages, max_tokens=SCENARIO_MAX_TOKENS):
+            raw_parts.append(segment)
+            raw = "".join(raw_parts)
+            for field in SCENARIO_STREAM_FIELDS:
+                field_prefix = _json_string_field_prefix(raw, field)
+                emitted = emitted_by_field[field]
+                if len(field_prefix) <= len(emitted):
+                    continue
+
+                delta = field_prefix[len(emitted) :]
+                emitted_by_field[field] = field_prefix
+                if not delta:
+                    continue
+
+                if not first_delta_logged:
+                    first_delta_logged = True
+                    _log_llm_event(
+                        f"first streamed scenario field after {time.perf_counter() - started_at:.2f}s"
+                    )
+                emit_field_delta(field, delta)
+
+        raw = "".join(raw_parts)
+        try:
+            payload = parse_json_object(raw)
+        except AIServiceError as exc:
+            repair_tokens = _json_repair_token_budget(SCENARIO_MAX_TOKENS, exc)
+            _log_llm_event(
+                f"streamed scenario JSON parse failed ({exc}); requesting JSON repair max_tokens={repair_tokens}"
+            )
+            repaired = self._generate(
+                [
+                    *messages,
+                    {"role": "assistant", "content": raw[:4000]},
+                    {
+                        "role": "user",
+                        "content": "Repair your previous answer. Return only one valid JSON object with the requested schema.",
+                    },
+                ],
+                max_tokens=repair_tokens,
+            )
+            payload = parse_json_object(repaired)
+
+        normalized = normalize_scenario(payload, counterparty_stance=counterparty_stance)
+        for field in SCENARIO_STREAM_FIELDS:
+            final_text = normalized[field]
+            emitted = emitted_by_field[field]
+            if final_text.startswith(emitted):
+                delta = final_text[len(emitted) :]
+                if delta:
+                    emit_field_delta(field, delta)
+            elif not emitted and final_text:
+                emit_field_delta(field, final_text)
+        return normalized
 
     def generate_graph(self, scenario, max_depth: int = 6) -> dict[str, Any]:
         payload = self._chat_json(

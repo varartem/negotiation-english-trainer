@@ -44,6 +44,7 @@ cp .env.example .env
 
 - `LLM_PROVIDER=mlx`
 - `LLM_MODEL=mlx-community/Qwen3.5-9B-OptiQ-4bit`
+- `EVALUATION_FEEDBACK_LANGUAGE=Russian`
 - `STT_PROVIDER=mlx`
 - `STT_MODEL=Qwen/Qwen3-ASR-0.6B`
 - `TTS_PROVIDER=mlx`

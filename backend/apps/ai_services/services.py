@@ -50,6 +50,36 @@ class LLMService:
     def generate_random_scenario(self, counterparty_stance: str = "neutral") -> dict[str, Any]:
         return self._provider.generate_random_scenario(counterparty_stance=counterparty_stance)
 
+    def stream_random_scenario(
+        self,
+        counterparty_stance: str = "neutral",
+        on_field_delta: Callable[[str, str], None] | None = None,
+    ) -> dict[str, Any]:
+        provider = self._provider
+        emit_field_delta = on_field_delta or (lambda _field, _delta: None)
+        if hasattr(provider, "stream_random_scenario"):
+            return provider.stream_random_scenario(
+                counterparty_stance=counterparty_stance,
+                on_field_delta=emit_field_delta,
+            )
+
+        scenario = provider.generate_random_scenario(counterparty_stance=counterparty_stance)
+        for field in (
+            "company_name",
+            "company_description",
+            "product_name",
+            "product_description",
+            "user_role",
+            "counterparty_role",
+            "counterparty_description",
+            "negotiation_goal",
+            "extra_context",
+        ):
+            value = str(scenario.get(field, "")).strip()
+            if value:
+                emit_field_delta(field, value)
+        return scenario
+
     def generate_graph(self, scenario, max_depth: int = 6) -> dict[str, Any]:
         return self._provider.generate_graph(scenario=scenario, max_depth=max_depth)
 

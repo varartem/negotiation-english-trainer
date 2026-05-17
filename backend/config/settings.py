@@ -129,6 +129,7 @@ LLM_MODEL = os.getenv("LLM_MODEL", "mlx-community/Qwen3.5-9B-OptiQ-4bit")
 LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.2"))
 LLM_TOP_P = float(os.getenv("LLM_TOP_P", "0.9"))
 LLM_TOP_K = int(os.getenv("LLM_TOP_K", "20"))
+EVALUATION_FEEDBACK_LANGUAGE = os.getenv("EVALUATION_FEEDBACK_LANGUAGE", "Russian")
 
 STT_PROVIDER = os.getenv("STT_PROVIDER", "mlx")
 STT_MODEL = os.getenv("STT_MODEL", "Qwen/Qwen3-ASR-0.6B")

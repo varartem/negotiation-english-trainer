@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
 import AutoResizeTextarea from "./AutoResizeTextarea";
+import ModelGenerationLoader from "./ModelGenerationLoader";
 import type { ModelProgressHandler } from "../api/client";
 import type { Message } from "../types";
 
@@ -425,12 +426,7 @@ export default function ChatPanel({
             </div>
           </div>
         ) : isAssistantThinking ? (
-          <div className="transcription-progress transcription-progress-indeterminate" aria-live="polite">
-            <span>{assistantThinkingLabel}</span>
-            <div className="transcription-progress-track">
-              <span />
-            </div>
-          </div>
+          <ModelGenerationLoader label={assistantThinkingLabel} />
         ) : null}
       </form>
     </section>

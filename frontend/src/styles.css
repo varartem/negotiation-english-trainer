@@ -388,9 +388,10 @@ button svg {
 
 .scenario-manual {
   display: grid;
-  gap: 12px;
-  max-width: 960px;
+  gap: 10px;
+  max-width: 680px;
   margin: 0 auto;
+  padding-bottom: 28px;
 }
 
 .manual-back-button {
@@ -430,6 +431,13 @@ button svg {
   padding: 22px;
 }
 
+.scenario-form {
+  display: grid;
+  gap: 10px;
+  border-color: rgba(17, 17, 17, 0.06);
+  padding: 18px 22px 20px;
+}
+
 .side-panel {
   display: flex;
   flex-direction: column;
@@ -438,6 +446,10 @@ button svg {
 
 .section-heading {
   margin-bottom: 18px;
+}
+
+.scenario-form .section-heading {
+  margin-bottom: 2px;
 }
 
 .section-heading h2,
@@ -450,6 +462,11 @@ button svg {
   line-height: 1.2;
 }
 
+.scenario-form .section-heading h2 {
+  font-size: 22px;
+  font-weight: 660;
+}
+
 .section-heading p,
 .session-header p,
 .node-details p,
@@ -459,12 +476,23 @@ button svg {
   line-height: 1.5;
 }
 
+.scenario-form .section-heading p {
+  margin-top: 5px;
+  font-size: 14px;
+}
+
 .form-grid,
 .dictionary-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
   margin: 16px 0 20px;
+}
+
+.scenario-form .form-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  margin: 0;
 }
 
 .field {
@@ -476,8 +504,24 @@ button svg {
   font-weight: 520;
 }
 
+.scenario-form .field {
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.scenario-form .field > span {
+  color: var(--muted);
+}
+
 .field-wide {
   grid-column: span 2;
+}
+
+.scenario-form .field-wide {
+  grid-column: auto;
 }
 
 .field input,
@@ -496,6 +540,27 @@ button svg {
     background 160ms ease;
 }
 
+.scenario-form .field input,
+.scenario-form .field textarea,
+.scenario-form .field select {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fbfbfc;
+  color: #151515;
+  padding: 8px 10px;
+  font-size: 14.5px;
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+.scenario-form .field textarea {
+  min-height: 58px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  line-height: 1.45;
+}
+
 .field textarea,
 .message-form textarea {
   overflow: hidden;
@@ -508,6 +573,13 @@ button svg {
 .message-form textarea:focus {
   background: #ffffff;
   box-shadow: 0 0 0 1px var(--line-strong);
+}
+
+.scenario-form .field input:focus,
+.scenario-form .field textarea:focus,
+.scenario-form .field select:focus {
+  border-color: rgba(17, 17, 17, 0.24);
+  box-shadow: 0 0 0 3px rgba(17, 17, 17, 0.04);
 }
 
 .primary-button,
@@ -533,6 +605,16 @@ button svg {
   background: #111111;
   color: #ffffff;
   padding: 10px 16px;
+}
+
+.scenario-form .primary-button {
+  justify-self: end;
+  min-width: 210px;
+  min-height: 42px;
+  margin-top: 2px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 560;
 }
 
 .secondary-button {
@@ -1486,6 +1568,10 @@ button svg {
 
   .start-primary,
   .start-secondary {
+    width: 100%;
+  }
+
+  .scenario-form .primary-button {
     width: 100%;
   }
 

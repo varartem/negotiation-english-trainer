@@ -2,6 +2,7 @@ from rest_framework import generics, status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
+from apps.ai_services.errors import AIServiceError
 from apps.ai_services.services import LLMService
 
 from .models import Scenario
@@ -29,7 +30,10 @@ def random_scenario(request):
         "medium": Scenario.COUNTERPARTY_STANCE_NEUTRAL,
         "hard": Scenario.COUNTERPARTY_STANCE_RESISTANT,
     }.get(counterparty_stance, counterparty_stance)
-    data = LLMService().generate_random_scenario(counterparty_stance=counterparty_stance)
+    try:
+        data = LLMService().generate_random_scenario(counterparty_stance=counterparty_stance)
+    except AIServiceError as exc:
+        raise AIServiceError(f"Не удалось сгенерировать сценарий переговоров: {exc}") from exc
     serializer = ScenarioSerializer(data=data)
     serializer.is_valid(raise_exception=True)
     scenario = serializer.save(is_random=True)

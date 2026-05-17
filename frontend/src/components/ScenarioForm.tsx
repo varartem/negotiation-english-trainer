@@ -59,7 +59,7 @@ export default function ScenarioForm({ value, onChange, onSubmit, disabled }: Sc
               <AutoResizeTextarea
                 value={String(value[field.key])}
                 onChange={(event) => setField(field.key, event.target.value)}
-                rows={3}
+                rows={2}
               />
             ) : (
               <input value={String(value[field.key])} onChange={(event) => setField(field.key, event.target.value)} />

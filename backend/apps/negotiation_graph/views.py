@@ -2,6 +2,7 @@ from rest_framework import generics, status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
+from apps.ai_services.errors import AIServiceError
 from apps.ai_services.services import LLMService
 from apps.scenarios.models import Scenario
 
@@ -18,7 +19,10 @@ class GraphDetailView(generics.RetrieveAPIView):
 def generate_graph(request, scenario_id: int):
     scenario = generics.get_object_or_404(Scenario, pk=scenario_id)
     max_depth = int(request.data.get("max_depth", 6))
-    graph_json = LLMService().generate_graph(scenario=scenario, max_depth=max_depth)
+    try:
+        graph_json = LLMService().generate_graph(scenario=scenario, max_depth=max_depth)
+    except AIServiceError as exc:
+        raise AIServiceError(f"Не удалось сгенерировать граф переговоров: {exc}") from exc
     graph = NegotiationGraph.objects.create(
         scenario=scenario,
         max_depth=max_depth,

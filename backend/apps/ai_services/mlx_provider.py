@@ -24,6 +24,12 @@ from .schemas import (
 )
 
 
+JSON_REPAIR_MIN_TOKENS = 1200
+JSON_INCOMPLETE_REPAIR_MULTIPLIER = 2
+SCENARIO_MAX_TOKENS = 1200
+GRAPH_MAX_TOKENS = 3200
+
+
 def _log_llm_event(message: str) -> None:
     print(f"[llm] {message}", flush=True)
 
@@ -97,11 +103,17 @@ class MlxLLMProvider:
         self.runtime = runtime or get_mlx_runtime()
 
     def generate_random_scenario(self, counterparty_stance: str = "neutral") -> dict[str, Any]:
-        payload = self._chat_json(prompts.scenario_prompt(counterparty_stance), max_tokens=900)
+        payload = self._chat_json(
+            prompts.scenario_prompt(counterparty_stance),
+            max_tokens=SCENARIO_MAX_TOKENS,
+        )
         return normalize_scenario(payload, counterparty_stance=counterparty_stance)
 
     def generate_graph(self, scenario, max_depth: int = 6) -> dict[str, Any]:
-        payload = self._chat_json(prompts.graph_prompt(scenario, max_depth), max_tokens=1800)
+        payload = self._chat_json(
+            prompts.graph_prompt(scenario, max_depth),
+            max_tokens=GRAPH_MAX_TOKENS,
+        )
         return normalize_graph(payload, max_depth=max_depth)
 
     def evaluate_user_reply(self, session, message_content: str) -> dict[str, Any]:
@@ -166,8 +178,11 @@ class MlxLLMProvider:
         raw = self._generate(messages, max_tokens=max_tokens)
         try:
             return parse_json_object(raw)
-        except AIServiceError:
-            _log_llm_event("json parse failed; requesting JSON repair")
+        except AIServiceError as exc:
+            repair_tokens = _json_repair_token_budget(max_tokens, exc)
+            _log_llm_event(
+                f"json parse failed ({exc}); requesting JSON repair max_tokens={repair_tokens}"
+            )
             repaired = self._generate(
                 [
                     *messages,
@@ -177,7 +192,7 @@ class MlxLLMProvider:
                         "content": "Repair your previous answer. Return only one valid JSON object with the requested schema.",
                     },
                 ],
-                max_tokens=max_tokens,
+                max_tokens=repair_tokens,
             )
             return parse_json_object(repaired)
 
@@ -214,8 +229,11 @@ class MlxLLMProvider:
         raw = "".join(raw_parts)
         try:
             payload = parse_json_object(raw)
-        except AIServiceError:
-            _log_llm_event("streamed JSON parse failed; requesting JSON repair")
+        except AIServiceError as exc:
+            repair_tokens = _json_repair_token_budget(max_tokens, exc)
+            _log_llm_event(
+                f"streamed JSON parse failed ({exc}); requesting JSON repair max_tokens={repair_tokens}"
+            )
             repaired = self._generate(
                 [
                     *messages,
@@ -225,7 +243,7 @@ class MlxLLMProvider:
                         "content": "Repair your previous answer. Return only one valid JSON object with the requested schema.",
                     },
                 ],
-                max_tokens=max_tokens,
+                max_tokens=repair_tokens,
             )
             payload = parse_json_object(repaired)
 
@@ -382,6 +400,12 @@ def _json_string_field_prefix(text: str, field: str) -> str:
             break
 
     return "".join(chars)
+
+
+def _json_repair_token_budget(max_tokens: int, error: AIServiceError) -> int:
+    if "незавершённый JSON" in str(error):
+        return max(max_tokens * JSON_INCOMPLETE_REPAIR_MULTIPLIER, JSON_REPAIR_MIN_TOKENS)
+    return max(max_tokens, JSON_REPAIR_MIN_TOKENS)
 
 
 class MlxSTTProvider:

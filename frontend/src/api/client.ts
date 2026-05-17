@@ -23,6 +23,25 @@ export interface ModelProgressEvent<TPayload = unknown> {
 
 export type ModelProgressHandler = (event: ModelProgressEvent) => void;
 
+async function errorMessageFromResponse(response: Response): Promise<string> {
+  const details = await response.text();
+  if (!details) {
+    return `Request failed: ${response.status}`;
+  }
+
+  try {
+    const parsed = JSON.parse(details) as { detail?: unknown; message?: unknown };
+    const message = parsed.detail ?? parsed.message;
+    if (typeof message === "string" && message.trim()) {
+      return message;
+    }
+  } catch {
+    // The backend can also return plain text for non-DRF errors.
+  }
+
+  return details;
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const isFormData = init.body instanceof FormData;
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -36,8 +55,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   });
 
   if (!response.ok) {
-    const details = await response.text();
-    throw new Error(details || `Request failed: ${response.status}`);
+    throw new Error(await errorMessageFromResponse(response));
   }
 
   if (response.status === 204) {
@@ -64,8 +82,7 @@ async function streamRequest<T>(
   });
 
   if (!response.ok) {
-    const details = await response.text();
-    throw new Error(details || `Request failed: ${response.status}`);
+    throw new Error(await errorMessageFromResponse(response));
   }
 
   if (!response.body) {

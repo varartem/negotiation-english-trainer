@@ -178,16 +178,6 @@ export default function App() {
     navigateHome();
   }
 
-  function handleOpenTraining() {
-    setActiveTab("training");
-    setRouteError(null);
-    if (session) {
-      navigateToSession(session);
-      return;
-    }
-    navigateToPath("/training");
-  }
-
   function handleOpenVocabulary() {
     setSession(null);
     setRouteError(null);
@@ -338,7 +328,6 @@ export default function App() {
         onOpenAccount={handleOpenAccount}
         onOpenHome={handleOpenHome}
         onOpenSession={(nextSession) => void openSessionByPublicId(nextSession.public_id)}
-        onOpenTraining={handleOpenTraining}
         onOpenVocabulary={handleOpenVocabulary}
         onLogout={() => void handleLogout()}
       />
@@ -388,7 +377,6 @@ interface AppSidebarProps {
   onOpenAccount: () => void;
   onOpenHome: () => void;
   onOpenSession: (session: DialogueSessionSummary) => void;
-  onOpenTraining: () => void;
   onOpenVocabulary: () => void;
   onLogout: () => void;
 }
@@ -403,7 +391,6 @@ function AppSidebar({
   onOpenAccount,
   onOpenHome,
   onOpenSession,
-  onOpenTraining,
   onOpenVocabulary,
   onLogout,
 }: AppSidebarProps) {
@@ -432,17 +419,6 @@ function AppSidebar({
               <PlusIcon />
             </span>
             <span>Новые переговоры</span>
-          </button>
-          <button
-            className={activeTab === "training" ? "sidebar-action active" : "sidebar-action"}
-            type="button"
-            title="Диалог"
-            onClick={onOpenTraining}
-          >
-            <span className="sidebar-action-icon">
-              <ChatIcon />
-            </span>
-            <span>Диалог</span>
           </button>
           <button
             className={activeTab === "vocabulary" ? "sidebar-action active" : "sidebar-action"}
@@ -527,14 +503,6 @@ function PlusIcon() {
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24">
       <path d="M12 5v14M5 12h14" />
-    </svg>
-  );
-}
-
-function ChatIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24">
-      <path d="M5 7.5A3.5 3.5 0 0 1 8.5 4h7A3.5 3.5 0 0 1 19 7.5v4A3.5 3.5 0 0 1 15.5 15H11l-5 4v-4.5A3.5 3.5 0 0 1 5 12V7.5z" />
     </svg>
   );
 }

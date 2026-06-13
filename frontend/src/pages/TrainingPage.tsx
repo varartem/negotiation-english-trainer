@@ -213,8 +213,8 @@ export default function TrainingPage({ session, onSessionChange }: TrainingPageP
           </div>
           <dl className="context-card-body">
             <div>
-              <dt>Продукт</dt>
-              <dd>{session.scenario.product_name}</dd>
+              <dt>Описание продукта</dt>
+              <dd>{session.scenario.product_description || session.scenario.product_name}</dd>
             </div>
             <div>
               <dt>Собеседник</dt>

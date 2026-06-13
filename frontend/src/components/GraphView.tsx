@@ -138,7 +138,7 @@ export default function GraphView({ graph, currentNodeId }: GraphViewProps) {
       {selectedNode ? (
         <div className="node-details">
           <div className="node-details-header">
-            <h3>{displayNodeLabel(selectedNode)}</h3>
+            <h4>Этап: {displayNodeLabel(selectedNode)}</h4>
             <button
               className="node-details-back"
               type="button"
@@ -162,6 +162,7 @@ export default function GraphView({ graph, currentNodeId }: GraphViewProps) {
               <dd>{selectedNode.counterparty_intent}</dd>
             </div>
           </dl>
+          <h4>Критерии успеха</h4>
           <ul>
             {selectedNode.success_criteria.map((criterion) => (
               <li key={criterion}>{criterion}</li>

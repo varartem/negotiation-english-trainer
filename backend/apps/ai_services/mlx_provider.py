@@ -28,6 +28,8 @@ JSON_REPAIR_MIN_TOKENS = 1200
 JSON_INCOMPLETE_REPAIR_MULTIPLIER = 2
 SCENARIO_MAX_TOKENS = 1200
 GRAPH_MAX_TOKENS = 3200
+COUNTERPARTY_REPLY_MAX_TOKENS = 500
+IDEAL_ANSWER_MAX_TOKENS = 500
 VOCABULARY_TRANSLATION_MAX_TOKENS = 200
 SCENARIO_STREAM_FIELDS = (
     "company_name",
@@ -177,11 +179,11 @@ class MlxLLMProvider:
         return normalized
 
     def generate_counterparty_reply(self, session, evaluation: dict[str, Any]) -> str:
-        payload = self._chat_json(
+        return self._chat_json_text_field(
             prompts.counterparty_prompt(session=session, evaluation=evaluation),
-            max_tokens=300,
+            max_tokens=COUNTERPARTY_REPLY_MAX_TOKENS,
+            field="reply",
         )
-        return normalize_text_field(payload, "reply")
 
     def stream_counterparty_reply(
         self,
@@ -191,15 +193,18 @@ class MlxLLMProvider:
     ) -> str:
         reply = self._chat_json_field_stream(
             prompts.counterparty_prompt(session=session, evaluation=evaluation),
-            max_tokens=300,
+            max_tokens=COUNTERPARTY_REPLY_MAX_TOKENS,
             field="reply",
             on_delta=on_delta,
         )
         return reply
 
     def generate_ideal_answer(self, session) -> str:
-        payload = self._chat_json(prompts.ideal_answer_prompt(session), max_tokens=300)
-        return normalize_text_field(payload, "ideal_answer")
+        return self._chat_json_text_field(
+            prompts.ideal_answer_prompt(session),
+            max_tokens=IDEAL_ANSWER_MAX_TOKENS,
+            field="ideal_answer",
+        )
 
     def translate_vocabulary_phrase(self, phrase: str, context: str = "") -> str:
         cleaned_phrase = phrase.strip()
@@ -226,6 +231,24 @@ class MlxLLMProvider:
             return parse_json_object(raw)
         except AIServiceError as exc:
             return self._ensure_json_with_retries(messages, raw, max_tokens, exc)
+
+    def _chat_json_text_field(self, user_prompt: str, *, max_tokens: int, field: str) -> str:
+        messages = [
+            {"role": "system", "content": prompts.JSON_SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt},
+        ]
+        raw = self._generate(messages, max_tokens=max_tokens)
+        partial_field = _json_string_field_prefix(raw, field).strip()
+        try:
+            payload = parse_json_object(raw)
+        except AIServiceError as exc:
+            try:
+                payload = self._ensure_json_with_retries(messages, raw, max_tokens, exc)
+            except AIServiceError:
+                if partial_field:
+                    return partial_field
+                raise
+        return normalize_text_field(payload, field)
 
     def _ensure_json_with_retries(
         self,

@@ -58,10 +58,7 @@ def parse_json_object(raw_text: str) -> dict[str, Any]:
     else:
         text = _extract_balanced_object(text)
 
-    try:
-        loaded = json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise AIServiceError(f"Модель вернула невалидный JSON: {exc}") from exc
+    loaded = _load_json_with_repair(text)
 
     if not isinstance(loaded, dict):
         raise AIServiceError("Модель вернула JSON не в виде объекта.")
@@ -250,3 +247,158 @@ def _extract_balanced_object(text: str) -> str:
                 return text[start : index + 1]
 
     raise AIServiceError("Модель вернула незавершённый JSON-объект.")
+
+
+def _load_json_with_repair(text: str) -> Any:
+    original_error: json.JSONDecodeError | None = None
+    seen: set[str] = set()
+    for candidate in _json_repair_candidates(text):
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError as exc:
+            if original_error is None:
+                original_error = exc
+
+    if original_error is None:
+        raise AIServiceError("Модель вернула пустой JSON.")
+    raise AIServiceError(f"Модель вернула невалидный JSON: {original_error}") from original_error
+
+
+def _json_repair_candidates(text: str) -> list[str]:
+    without_trailing_commas = _remove_trailing_commas(text)
+    with_escaped_quotes = _escape_unescaped_string_quotes(without_trailing_commas)
+    return [
+        text,
+        without_trailing_commas,
+        _insert_missing_commas(without_trailing_commas),
+        _remove_trailing_commas(_insert_missing_commas(with_escaped_quotes)),
+    ]
+
+
+def _remove_trailing_commas(text: str) -> str:
+    result: list[str] = []
+    in_string = False
+    escaped = False
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if in_string:
+            result.append(char)
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            index += 1
+            continue
+
+        if char == '"':
+            in_string = True
+            result.append(char)
+            index += 1
+            continue
+
+        if char == ",":
+            next_index = _next_non_whitespace_index(text, index + 1)
+            if next_index < len(text) and text[next_index] in "}]":
+                index += 1
+                continue
+
+        result.append(char)
+        index += 1
+    return "".join(result)
+
+
+def _insert_missing_commas(text: str) -> str:
+    result: list[str] = []
+    in_string = False
+    escaped = False
+    last_significant = ""
+    had_whitespace = False
+
+    for char in text:
+        if in_string:
+            result.append(char)
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+                last_significant = char
+                had_whitespace = False
+            continue
+
+        if char.isspace():
+            result.append(char)
+            if last_significant:
+                had_whitespace = True
+            continue
+
+        if had_whitespace and _is_json_value_end(last_significant) and _is_json_value_start(char):
+            result.append(",")
+            last_significant = ","
+
+        result.append(char)
+        had_whitespace = False
+        if char == '"':
+            in_string = True
+        else:
+            last_significant = char
+
+    return "".join(result)
+
+
+def _escape_unescaped_string_quotes(text: str) -> str:
+    result: list[str] = []
+    in_string = False
+    escaped = False
+    for index, char in enumerate(text):
+        if not in_string:
+            result.append(char)
+            if char == '"':
+                in_string = True
+            continue
+
+        if escaped:
+            result.append(char)
+            escaped = False
+            continue
+
+        if char == "\\":
+            result.append(char)
+            escaped = True
+            continue
+
+        if char != '"':
+            result.append(char)
+            continue
+
+        next_index = _next_non_whitespace_index(text, index + 1)
+        next_char = text[next_index] if next_index < len(text) else ""
+        if not next_char or next_char in ':,]}' or next_char == '"':
+            in_string = False
+            result.append(char)
+        else:
+            result.append('\\"')
+
+    return "".join(result)
+
+
+def _next_non_whitespace_index(text: str, start: int) -> int:
+    index = start
+    while index < len(text) and text[index].isspace():
+        index += 1
+    return index
+
+
+def _is_json_value_end(char: str) -> bool:
+    return char in {'"', "}", "]"} or char.isdigit() or char in {"e", "l"}
+
+
+def _is_json_value_start(char: str) -> bool:
+    return char in {'"', "{", "[", "-", "t", "f", "n"} or char.isdigit()

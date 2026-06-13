@@ -10,6 +10,7 @@ from .schemas import NEGOTIATION_MOVES
 JSON_SYSTEM_PROMPT = (
     "You are the AI core of a negotiation English training app. "
     "Return only valid JSON that matches the requested schema. "
+    "Inside JSON string values, escape double quotes or use apostrophes. "
     "Follow the language instructions in the user prompt exactly for every JSON string. "
     "Do not include markdown, comments, prose, or hidden reasoning."
 )

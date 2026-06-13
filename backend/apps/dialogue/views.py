@@ -30,25 +30,31 @@ STAGE_ORDER = {
 
 
 class SessionListView(generics.ListAPIView):
-    queryset = DialogueSession.objects.select_related("scenario").order_by("-updated_at")
     serializer_class = DialogueSessionSummarySerializer
+
+    def get_queryset(self):
+        return DialogueSession.objects.select_related("scenario").filter(user=self.request.user).order_by("-updated_at")
 
 
 class SessionDetailView(generics.RetrieveAPIView):
-    queryset = SESSION_QUERYSET
     serializer_class = DialogueSessionSerializer
+
+    def get_queryset(self):
+        return SESSION_QUERYSET.filter(user=self.request.user)
 
 
 class SessionPublicDetailView(generics.RetrieveAPIView):
-    queryset = SESSION_QUERYSET
     serializer_class = DialogueSessionSerializer
     lookup_field = "public_id"
     lookup_url_kwarg = "public_id"
 
+    def get_queryset(self):
+        return SESSION_QUERYSET.filter(user=self.request.user)
+
 
 @api_view(["POST"])
 def start_session(request, scenario_id: int):
-    scenario = generics.get_object_or_404(Scenario, pk=scenario_id)
+    scenario = generics.get_object_or_404(Scenario, pk=scenario_id, user=request.user)
     graph = scenario.graphs.first()
     if graph is None:
         graph_json = LLMService().generate_graph(scenario=scenario, max_depth=6)
@@ -57,6 +63,7 @@ def start_session(request, scenario_id: int):
     session = DialogueSession.objects.create(
         scenario=scenario,
         graph=graph,
+        user=request.user,
         current_node_id=graph.graph_json["start_node_id"],
     )
     opening = Message.objects.create(
@@ -75,6 +82,7 @@ def send_message(request, session_id: int):
     session = generics.get_object_or_404(
         DialogueSession.objects.select_related("scenario", "graph"),
         pk=session_id,
+        user=request.user,
     )
     serializer = UserMessageCreateSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
@@ -85,13 +93,15 @@ def send_message(request, session_id: int):
 
 @api_view(["POST"])
 def send_message_progress(request, session_id: int):
+    generics.get_object_or_404(DialogueSession, pk=session_id, user=request.user)
     serializer = UserMessageCreateSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     content = serializer.validated_data["content"]
+    user_id = request.user.id
 
     def worker(emit):
         emit({"type": "progress", "progress": 8, "stage": "queued", "detail": "Реплика поставлена в очередь."})
-        session = DialogueSession.objects.select_related("scenario", "graph").get(pk=session_id)
+        session = DialogueSession.objects.select_related("scenario", "graph").get(pk=session_id, user_id=user_id)
 
         def emit_delta(delta: str) -> None:
             emit(
@@ -115,7 +125,7 @@ def send_message_progress(request, session_id: int):
 
 @api_view(["POST"])
 def retry_stage(request, session_id: int):
-    session = generics.get_object_or_404(DialogueSession, pk=session_id)
+    session = generics.get_object_or_404(DialogueSession, pk=session_id, user=request.user)
     session.status = DialogueSession.STATUS_ACTIVE
     session.save(update_fields=["status", "updated_at"])
     tutor_message = Message.objects.create(
@@ -137,13 +147,14 @@ def ideal_answer(request, session_id: int):
     session = generics.get_object_or_404(
         DialogueSession.objects.select_related("scenario", "graph"),
         pk=session_id,
+        user=request.user,
     )
     return Response({"ideal_answer": LLMService().generate_ideal_answer(session)})
 
 
 @api_view(["POST"])
 def synthesize_message(request, message_id: int):
-    message = generics.get_object_or_404(Message, pk=message_id)
+    message = generics.get_object_or_404(Message, pk=message_id, session__user=request.user)
     file_prefix = f"message_{message.id}_{message.created_at.strftime('%Y%m%d%H%M%S')}"
     message.audio_url = TTSService().synthesize(message.content, file_prefix=file_prefix)
     message.save(update_fields=["audio_url"])
@@ -152,9 +163,12 @@ def synthesize_message(request, message_id: int):
 
 @api_view(["POST"])
 def synthesize_message_progress(request, message_id: int):
+    generics.get_object_or_404(Message, pk=message_id, session__user=request.user)
+    user_id = request.user.id
+
     def worker(emit):
         emit(4, "queued", "Запрос TTS поставлен в очередь.")
-        message = Message.objects.get(pk=message_id)
+        message = Message.objects.get(pk=message_id, session__user_id=user_id)
         if message.audio_url:
             emit(100, "cached_audio", "Аудио уже готово.")
             return {"message": MessageSerializer(message).data}

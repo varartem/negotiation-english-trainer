@@ -156,6 +156,13 @@ button svg {
   color: var(--ink);
 }
 
+.sidebar-brand-button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+}
+
 .sidebar-mark {
   display: inline-flex;
   align-items: center;
@@ -331,6 +338,277 @@ button svg {
   font-size: 12px;
 }
 
+.sidebar-account {
+  display: grid;
+  gap: 4px;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+
+.account-button {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  width: 40px;
+  min-height: 42px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #333333;
+  overflow: hidden;
+  padding: 2px 0;
+  text-align: left;
+  transition:
+    background 160ms ease,
+    width 220ms ease;
+}
+
+.app-sidebar:hover .account-button {
+  width: calc(var(--sidebar-expanded) - 16px);
+}
+
+.account-button:hover,
+.account-button.active {
+  background: #ececec;
+}
+
+.account-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: 0 auto;
+  border-radius: 50%;
+  background: #111111;
+  color: #ffffff;
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 650;
+  overflow: hidden;
+}
+
+.account-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.account-copy {
+  display: grid;
+  min-width: 0;
+  opacity: 0;
+  transform: translateX(-4px);
+  transition:
+    opacity 170ms ease,
+    transform 210ms ease;
+}
+
+.app-sidebar:hover .account-copy {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.account-copy strong,
+.account-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-copy strong {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 560;
+}
+
+.account-copy small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.sidebar-logout {
+  color: #6d3f3a;
+}
+
+.auth-screen {
+  position: relative;
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  background: #ffffff;
+  padding: 24px;
+}
+
+.auth-home-link {
+  position: fixed;
+  top: 22px;
+  left: 22px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink);
+  padding: 6px 8px 6px 6px;
+  font-size: 15px;
+  font-weight: 620;
+  line-height: 1;
+  transition:
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.auth-home-link:hover {
+  background: #f2f2f2;
+}
+
+.auth-home-link .sidebar-mark {
+  margin: 0;
+}
+
+.auth-panel {
+  display: grid;
+  width: min(420px, 100%);
+  gap: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: #ffffff;
+  padding: 28px;
+  box-shadow: 0 18px 52px rgba(0, 0, 0, 0.08);
+}
+
+.auth-form {
+  display: grid;
+  gap: 12px;
+}
+
+.auth-submit {
+  width: 100%;
+  min-height: 46px;
+  margin-top: 2px;
+}
+
+.auth-switch {
+  justify-self: center;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 6px 10px;
+  font-weight: 520;
+}
+
+.auth-switch:hover {
+  color: var(--ink);
+}
+
+.public-main {
+  min-height: 100vh;
+  background: #ffffff;
+}
+
+.welcome-page {
+  display: grid;
+  min-height: calc(100vh - 56px);
+  place-items: center;
+  padding: 24px;
+}
+
+.public-main .welcome-page {
+  min-height: 100vh;
+}
+
+.welcome-content {
+  display: grid;
+  width: min(720px, 100%);
+  gap: 28px;
+  justify-items: center;
+  text-align: center;
+}
+
+.welcome-content h1 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 52px;
+  font-weight: 660;
+  line-height: 1.04;
+  letter-spacing: 0;
+}
+
+.welcome-actions {
+  display: flex;
+  width: min(460px, 100%);
+  gap: 12px;
+  justify-content: center;
+}
+
+.welcome-actions .start-primary,
+.welcome-actions .start-secondary {
+  flex: 1 1 0;
+}
+
+.account-page {
+  display: grid;
+  min-height: calc(100vh - 56px);
+  place-items: start center;
+  padding: 24px 0;
+}
+
+.account-content {
+  display: grid;
+  width: min(900px, 100%);
+  gap: 16px;
+}
+
+.account-panel {
+  display: grid;
+  gap: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  padding: 24px;
+}
+
+.account-photo-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+}
+
+.account-avatar-large {
+  width: 88px;
+  height: 88px;
+  margin: 0;
+  font-size: 28px;
+}
+
+.account-photo-actions,
+.account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.file-button {
+  position: relative;
+  overflow: hidden;
+}
+
+.file-button input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.account-form-grid {
+  margin: 0;
+}
+
 .scenario-start {
   display: grid;
   min-height: calc(100vh - 56px);
@@ -453,6 +731,7 @@ button svg {
 }
 
 .section-heading h2,
+.section-heading h1,
 .panel h2,
 .side-panel h2 {
   margin: 0;
@@ -474,6 +753,11 @@ button svg {
   margin: 7px 0 0;
   color: var(--muted);
   line-height: 1.5;
+}
+
+.section-heading h1 {
+  font-size: 26px;
+  font-weight: 660;
 }
 
 .scenario-form .section-heading p {
@@ -655,6 +939,16 @@ button svg {
   border-radius: var(--radius-card);
   background: #fff1f0;
   color: #8c3b32;
+  padding: 10px 12px;
+  line-height: 1.45;
+}
+
+.success-box {
+  margin: 10px auto;
+  max-width: 900px;
+  border-radius: var(--radius-card);
+  background: #eff8f2;
+  color: #24543a;
   padding: 10px 12px;
   line-height: 1.45;
 }
@@ -1660,6 +1954,7 @@ button svg {
 
   .form-grid,
   .dictionary-form-grid,
+  .account-form-grid,
   .session-header,
   .message-form {
     display: flex;
@@ -1667,6 +1962,11 @@ button svg {
   }
 
   .scenario-start-actions {
+    flex-direction: column;
+    width: min(460px, 100%);
+  }
+
+  .welcome-actions {
     flex-direction: column;
     width: min(460px, 100%);
   }
@@ -1763,6 +2063,16 @@ button svg {
   .node-details dl {
     grid-template-columns: 1fr;
   }
+
+  .auth-panel,
+  .account-panel {
+    padding: 22px;
+  }
+
+  .welcome-content h1 {
+    font-size: 40px;
+    line-height: 1.08;
+  }
 }
 
 @media (max-width: 560px) {
@@ -1818,5 +2128,34 @@ button svg {
   .selection-bubble {
     max-width: calc(100vw - 24px);
     white-space: nowrap;
+  }
+
+  .auth-screen {
+    padding: 14px;
+  }
+
+  .auth-home-link {
+    top: 12px;
+    left: 12px;
+  }
+
+  .auth-panel,
+  .account-panel {
+    border-radius: 12px;
+    padding: 18px;
+  }
+
+  .welcome-page,
+  .account-page {
+    padding-right: 4px;
+    padding-left: 4px;
+  }
+
+  .welcome-content h1 {
+    font-size: 32px;
+  }
+
+  .account-photo-row {
+    align-items: flex-start;
   }
 }

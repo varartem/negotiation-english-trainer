@@ -169,7 +169,7 @@ export default function ScenarioPage({ onSessionReady }: ScenarioPageProps) {
       <section className="scenario-start">
         <div className="scenario-start-actions">
           <button className="start-primary" type="button" onClick={handleRandom} disabled={isLoading}>
-            Сгенерировать сценарий переговоров
+            Сгенерировать сценарий
           </button>
           <button
             className="start-secondary"
@@ -181,7 +181,7 @@ export default function ScenarioPage({ onSessionReady }: ScenarioPageProps) {
             }}
             disabled={isLoading}
           >
-            Задать сценарий переговоров вручную
+            Создать сценарий
           </button>
         </div>
         {error ? <p className="error-box">{error}</p> : null}

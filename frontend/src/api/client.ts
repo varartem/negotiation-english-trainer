@@ -1,4 +1,5 @@
 import type {
+  AccountUser,
   CounterpartyStance,
   DialogueSession,
   DialogueSessionSummary,
@@ -8,8 +9,16 @@ import type {
   VocabularyItem,
 } from "../types";
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api").replace(/\/$/, "");
+function defaultApiBaseUrl() {
+  const hostname = window.location.hostname || "localhost";
+  return `${window.location.protocol}//${hostname}:8000/api`;
+}
+
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? defaultApiBaseUrl()).replace(/\/$/, "");
 const API_ORIGIN = API_BASE_URL.replace(/\/api$/, "");
+const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+let csrfTokenRequest: Promise<string> | null = null;
 
 export interface ModelProgressEvent<TPayload = unknown> {
   type: "progress" | "done" | "error" | "assistant_delta" | "scenario_field_delta";
@@ -31,10 +40,26 @@ async function errorMessageFromResponse(response: Response): Promise<string> {
   }
 
   try {
-    const parsed = JSON.parse(details) as { detail?: unknown; message?: unknown };
+    const parsed = JSON.parse(details) as { detail?: unknown; message?: unknown } | Record<string, unknown>;
     const message = parsed.detail ?? parsed.message;
     if (typeof message === "string" && message.trim()) {
       return message;
+    }
+    if (parsed && typeof parsed === "object") {
+      const fieldMessages = Object.entries(parsed)
+        .flatMap(([field, value]) => {
+          if (Array.isArray(value)) {
+            return value.map((item) => `${field}: ${String(item)}`);
+          }
+          if (typeof value === "string") {
+            return [`${field}: ${value}`];
+          }
+          return [];
+        })
+        .join("\n");
+      if (fieldMessages) {
+        return fieldMessages;
+      }
     }
   } catch {
     // The backend can also return plain text for non-DRF errors.
@@ -43,16 +68,52 @@ async function errorMessageFromResponse(response: Response): Promise<string> {
   return details;
 }
 
+function getCookie(name: string): string {
+  return document.cookie
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${name}=`))
+    ?.slice(name.length + 1) ?? "";
+}
+
+async function ensureCsrfToken(): Promise<string> {
+  const existingToken = getCookie("csrftoken");
+  if (existingToken) {
+    return decodeURIComponent(existingToken);
+  }
+
+  csrfTokenRequest ??= fetch(`${API_BASE_URL}/auth/csrf/`, {
+    credentials: "include",
+  })
+    .then(async (response) => {
+      if (!response.ok) {
+        throw new Error(await errorMessageFromResponse(response));
+      }
+      const data = (await response.json()) as { csrfToken?: string };
+      return data.csrfToken ?? decodeURIComponent(getCookie("csrftoken"));
+    })
+    .finally(() => {
+      csrfTokenRequest = null;
+    });
+
+  return csrfTokenRequest;
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const isFormData = init.body instanceof FormData;
+  const method = (init.method ?? "GET").toUpperCase();
+  const headers = new Headers(init.headers);
+  if (!isFormData && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  if (UNSAFE_METHODS.has(method)) {
+    headers.set("X-CSRFToken", await ensureCsrfToken());
+  }
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: isFormData
-      ? init.headers
-      : {
-          "Content-Type": "application/json",
-          ...(init.headers ?? {}),
-        },
     ...init,
+    credentials: "include",
+    headers,
   });
 
   if (!response.ok) {
@@ -72,14 +133,19 @@ async function streamRequest<T>(
   onProgress?: ModelProgressHandler,
 ): Promise<T> {
   const isFormData = init.body instanceof FormData;
+  const method = (init.method ?? "GET").toUpperCase();
+  const headers = new Headers(init.headers);
+  if (!isFormData && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  if (UNSAFE_METHODS.has(method)) {
+    headers.set("X-CSRFToken", await ensureCsrfToken());
+  }
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: isFormData
-      ? init.headers
-      : {
-          "Content-Type": "application/json",
-          ...(init.headers ?? {}),
-        },
     ...init,
+    credentials: "include",
+    headers,
   });
 
   if (!response.ok) {
@@ -147,6 +213,49 @@ export function resolveBackendUrl(url: string): string {
 export type ScenarioPayload = Omit<Scenario, "id" | "is_random" | "created_at" | "updated_at">;
 
 export const api = {
+  getCsrfToken() {
+    return request<{ csrfToken: string }>("/auth/csrf/");
+  },
+
+  getCurrentUser() {
+    return request<AccountUser>("/auth/me/");
+  },
+
+  register(payload: { name: string; email: string; password: string }) {
+    return request<AccountUser>("/auth/register/", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  login(payload: { email: string; password: string }) {
+    return request<AccountUser>("/auth/login/", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  logout() {
+    return request<void>("/auth/logout/", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+  },
+
+  updateAccount(payload: FormData) {
+    return request<AccountUser>("/auth/me/", {
+      method: "PATCH",
+      body: payload,
+    });
+  },
+
+  changePassword(payload: { current_password: string; new_password: string }) {
+    return request<AccountUser>("/auth/password/", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
   createScenario(payload: ScenarioPayload) {
     return request<Scenario>("/scenarios/", {
       method: "POST",

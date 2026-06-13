@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "corsheaders",
     "rest_framework",
+    "apps.accounts.apps.AccountsConfig",
     "apps.scenarios",
     "apps.negotiation_graph",
     "apps.dialogue",
@@ -109,6 +110,8 @@ MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework.authentication.SessionAuthentication"],
+    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_PARSER_CLASSES": ["rest_framework.parsers.JSONParser"],
     "EXCEPTION_HANDLER": "apps.ai_services.exception_handler.ai_exception_handler",
@@ -122,7 +125,10 @@ CORS_ALLOWED_ORIGINS = sorted(
         "http://127.0.0.1:5173",
     }
 )
-CORS_ALLOW_CREDENTIALS = False
+CORS_ALLOW_CREDENTIALS = True
+CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SAMESITE = "Lax"
 
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "mlx")
 LLM_MODEL = os.getenv("LLM_MODEL", "mlx-community/Qwen3.5-9B-OptiQ-4bit")

@@ -1,4 +1,5 @@
 from django.db import models
+from django.conf import settings
 
 
 class Scenario(models.Model):
@@ -27,6 +28,13 @@ class Scenario(models.Model):
     )
     extra_context = models.TextField(blank=True)
     is_random = models.BooleanField(default=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="scenarios",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

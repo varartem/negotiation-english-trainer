@@ -11,13 +11,15 @@ from .serializers import NegotiationGraphSerializer
 
 
 class GraphDetailView(generics.RetrieveAPIView):
-    queryset = NegotiationGraph.objects.select_related("scenario")
     serializer_class = NegotiationGraphSerializer
+
+    def get_queryset(self):
+        return NegotiationGraph.objects.select_related("scenario").filter(scenario__user=self.request.user)
 
 
 @api_view(["POST"])
 def generate_graph(request, scenario_id: int):
-    scenario = generics.get_object_or_404(Scenario, pk=scenario_id)
+    scenario = generics.get_object_or_404(Scenario, pk=scenario_id, user=request.user)
     max_depth = int(request.data.get("max_depth", 6))
     try:
         graph_json = LLMService().generate_graph(scenario=scenario, max_depth=max_depth)

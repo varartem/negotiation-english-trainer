@@ -1,5 +1,6 @@
 import uuid
 
+from django.conf import settings
 from django.db import models
 
 
@@ -25,6 +26,13 @@ class DialogueSession(models.Model):
     graph = models.ForeignKey(
         "negotiation_graph.NegotiationGraph",
         related_name="sessions",
+        on_delete=models.CASCADE,
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="dialogue_sessions",
+        null=True,
+        blank=True,
         on_delete=models.CASCADE,
     )
     current_node_id = models.CharField(max_length=120)

@@ -114,3 +114,10 @@ export interface VocabularyItem {
   user_note: string;
   created_at: string;
 }
+
+export interface AccountUser {
+  id: number;
+  name: string;
+  email: string;
+  photo_url: string;
+}

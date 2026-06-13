@@ -11,13 +11,20 @@ from .serializers import ScenarioSerializer
 
 
 class ScenarioListCreateView(generics.ListCreateAPIView):
-    queryset = Scenario.objects.all()
     serializer_class = ScenarioSerializer
+
+    def get_queryset(self):
+        return Scenario.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
 
 
 class ScenarioDetailView(generics.RetrieveAPIView):
-    queryset = Scenario.objects.all()
     serializer_class = ScenarioSerializer
+
+    def get_queryset(self):
+        return Scenario.objects.filter(user=self.request.user)
 
 
 @api_view(["POST"])
@@ -29,13 +36,14 @@ def random_scenario(request):
         raise AIServiceError(f"Не удалось сгенерировать сценарий переговоров: {exc}") from exc
     serializer = ScenarioSerializer(data=data)
     serializer.is_valid(raise_exception=True)
-    scenario = serializer.save(is_random=True)
+    scenario = serializer.save(is_random=True, user=request.user)
     return Response(ScenarioSerializer(scenario).data, status=status.HTTP_201_CREATED)
 
 
 @api_view(["POST"])
 def random_scenario_progress(request):
     counterparty_stance = _counterparty_stance_from_request(request)
+    user_id = request.user.id
 
     def worker(emit):
         emit(
@@ -84,7 +92,7 @@ def random_scenario_progress(request):
         )
         serializer = ScenarioSerializer(data=data)
         serializer.is_valid(raise_exception=True)
-        scenario = serializer.save(is_random=True)
+        scenario = serializer.save(is_random=True, user_id=user_id)
         return ScenarioSerializer(scenario).data
 
     return stream_event_response(worker)

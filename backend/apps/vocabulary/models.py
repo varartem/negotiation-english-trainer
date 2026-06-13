@@ -1,7 +1,15 @@
+from django.conf import settings
 from django.db import models
 
 
 class VocabularyItem(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        related_name="vocabulary_items",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+    )
     phrase = models.CharField(max_length=255)
     translation = models.CharField(max_length=255, blank=True)
     context = models.TextField(blank=True)

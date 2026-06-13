@@ -1,18 +1,45 @@
 import { useEffect, useState } from "react";
-import { api } from "./api/client";
+import { api, resolveBackendUrl } from "./api/client";
 import Layout from "./components/Layout";
+import AccountPage from "./pages/AccountPage";
+import AuthPage from "./pages/AuthPage";
 import ScenarioPage from "./pages/ScenarioPage";
 import TrainingPage from "./pages/TrainingPage";
 import VocabularyPage from "./pages/VocabularyPage";
-import type { DialogueSession, DialogueSessionSummary } from "./types";
+import WelcomePage from "./pages/WelcomePage";
+import type { AccountUser, DialogueSession, DialogueSessionSummary } from "./types";
 
-type AppTab = "training" | "vocabulary";
+type AppTab = "home" | "training" | "vocabulary" | "account";
+type AuthMode = "login" | "register";
 
 const PUBLIC_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+function cleanPath() {
+  return window.location.pathname.replace(/^\/+|\/+$/g, "");
+}
+
 function getRoutePublicId() {
-  const path = window.location.pathname.replace(/^\/+|\/+$/g, "");
+  const path = cleanPath();
   return PUBLIC_ID_PATTERN.test(path) ? path : null;
+}
+
+function getRouteAuthMode(): AuthMode | null {
+  const path = cleanPath();
+  if (path === "login" || path === "register") {
+    return path;
+  }
+  return null;
+}
+
+function getRouteTab(): AppTab | null {
+  const path = cleanPath();
+  if (path === "") {
+    return "home";
+  }
+  if (path === "training" || path === "vocabulary" || path === "account") {
+    return path;
+  }
+  return null;
 }
 
 function toSessionSummary(session: DialogueSession): DialogueSessionSummary {
@@ -28,12 +55,30 @@ function toSessionSummary(session: DialogueSession): DialogueSessionSummary {
 }
 
 export default function App() {
+  const [currentUser, setCurrentUser] = useState<AccountUser | null>(null);
+  const [authMode, setAuthMode] = useState<AuthMode>(getRouteAuthMode() ?? "login");
+  const [, setRouteRevision] = useState(0);
   const [session, setSession] = useState<DialogueSession | null>(null);
   const [sessionHistory, setSessionHistory] = useState<DialogueSessionSummary[]>([]);
-  const [activeTab, setActiveTab] = useState<AppTab>("training");
+  const [activeTab, setActiveTab] = useState<AppTab>("home");
   const [scenarioResetKey, setScenarioResetKey] = useState(0);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isSessionLoading, setIsSessionLoading] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
+
+  function navigateToPath(path: string) {
+    if (window.location.pathname !== path) {
+      window.history.pushState({}, "", path);
+      setRouteRevision((revision) => revision + 1);
+    }
+  }
+
+  function replacePath(path: string) {
+    if (window.location.pathname !== path) {
+      window.history.replaceState({}, "", path);
+      setRouteRevision((revision) => revision + 1);
+    }
+  }
 
   function rememberSession(nextSession: DialogueSession | DialogueSessionSummary) {
     const summary = "messages" in nextSession ? toSessionSummary(nextSession) : nextSession;
@@ -44,16 +89,11 @@ export default function App() {
   }
 
   function navigateToSession(nextSession: DialogueSession | DialogueSessionSummary) {
-    const nextPath = `/${nextSession.public_id}`;
-    if (window.location.pathname !== nextPath) {
-      window.history.pushState({}, "", nextPath);
-    }
+    navigateToPath(`/${nextSession.public_id}`);
   }
 
   function navigateHome() {
-    if (window.location.pathname !== "/") {
-      window.history.pushState({}, "", "/");
-    }
+    navigateToPath("/");
   }
 
   async function openSessionByPublicId(publicId: string, pushRoute = true) {
@@ -69,10 +109,42 @@ export default function App() {
       }
     } catch (error) {
       setSession(null);
+      setActiveTab("training");
       setRouteError(error instanceof Error ? error.message : "Не удалось открыть диалог");
     } finally {
       setIsSessionLoading(false);
     }
+  }
+
+  async function syncAuthenticatedRoute() {
+    const authRoute = getRouteAuthMode();
+    if (authRoute) {
+      setSession(null);
+      setRouteError(null);
+      setActiveTab("home");
+      navigateHome();
+      return;
+    }
+
+    const publicId = getRoutePublicId();
+    if (publicId) {
+      await openSessionByPublicId(publicId, false);
+      return;
+    }
+
+    const routeTab = getRouteTab();
+    setIsSessionLoading(false);
+    setRouteError(null);
+    setSession(null);
+    setActiveTab(routeTab ?? "home");
+    if (!routeTab) {
+      navigateHome();
+    }
+  }
+
+  async function loadSessions() {
+    const sessions = await api.listSessions();
+    setSessionHistory(sessions);
   }
 
   function handleSessionReady(nextSession: DialogueSession) {
@@ -95,8 +167,15 @@ export default function App() {
     setSession(null);
     setRouteError(null);
     setActiveTab("training");
-    navigateHome();
+    navigateToPath("/training");
     setScenarioResetKey((key) => key + 1);
+  }
+
+  function handleOpenHome() {
+    setSession(null);
+    setRouteError(null);
+    setActiveTab("home");
+    navigateHome();
   }
 
   function handleOpenTraining() {
@@ -104,6 +183,54 @@ export default function App() {
     setRouteError(null);
     if (session) {
       navigateToSession(session);
+      return;
+    }
+    navigateToPath("/training");
+  }
+
+  function handleOpenVocabulary() {
+    setSession(null);
+    setRouteError(null);
+    setActiveTab("vocabulary");
+    navigateToPath("/vocabulary");
+  }
+
+  function handleOpenAccount() {
+    setSession(null);
+    setRouteError(null);
+    setActiveTab("account");
+    navigateToPath("/account");
+  }
+
+  function handleAuthModeChange(nextMode: AuthMode) {
+    setAuthMode(nextMode);
+    navigateToPath(nextMode === "login" ? "/login" : "/register");
+  }
+
+  async function handleAuthenticated(user: AccountUser) {
+    setCurrentUser(user);
+    setSession(null);
+    setRouteError(null);
+    setActiveTab("home");
+    navigateHome();
+    try {
+      await loadSessions();
+    } catch {
+      setSessionHistory([]);
+    }
+  }
+
+  async function handleLogout() {
+    try {
+      await api.logout();
+    } finally {
+      setCurrentUser(null);
+      setSession(null);
+      setSessionHistory([]);
+      setRouteError(null);
+      setActiveTab("home");
+      setAuthMode("login");
+      navigateHome();
     }
   }
 
@@ -111,75 +238,121 @@ export default function App() {
     let isActive = true;
 
     async function hydrate() {
-      const publicId = getRoutePublicId();
-      setIsSessionLoading(Boolean(publicId));
-      setRouteError(null);
+      setIsAuthLoading(true);
       try {
-        const sessions = await api.listSessions();
+        await api.getCsrfToken();
+        const user = await api.getCurrentUser();
         if (!isActive) {
           return;
         }
-        setSessionHistory(sessions);
-
-        if (!publicId) {
-          setIsSessionLoading(false);
-          return;
-        }
-
-        const loadedSession = await api.getSessionByPublicId(publicId);
+        setCurrentUser(user);
+        await loadSessions();
         if (!isActive) {
           return;
         }
-        setSession(loadedSession);
-        rememberSession(loadedSession);
-      } catch (error) {
+        await syncAuthenticatedRoute();
+      } catch {
         if (!isActive) {
           return;
         }
+        setCurrentUser(null);
         setSession(null);
-        setRouteError(error instanceof Error ? error.message : "Не удалось загрузить историю диалогов");
+        setSessionHistory([]);
+        setRouteError(null);
+        const routeAuthMode = getRouteAuthMode();
+        setAuthMode(routeAuthMode ?? "login");
+        if (!routeAuthMode && cleanPath() !== "") {
+          replacePath("/");
+        }
       } finally {
         if (isActive) {
-          setIsSessionLoading(false);
+          setIsAuthLoading(false);
         }
       }
-    }
-
-    function handlePopState() {
-      const publicId = getRoutePublicId();
-      if (publicId) {
-        void openSessionByPublicId(publicId, false);
-        return;
-      }
-      setSession(null);
-      setRouteError(null);
-      setActiveTab("training");
     }
 
     void hydrate();
-    window.addEventListener("popstate", handlePopState);
 
     return () => {
       isActive = false;
-      window.removeEventListener("popstate", handlePopState);
     };
   }, []);
+
+  useEffect(() => {
+    function handlePopState() {
+      if (!currentUser) {
+        const routeAuthMode = getRouteAuthMode();
+        setAuthMode(routeAuthMode ?? "login");
+        if (!routeAuthMode && cleanPath() !== "") {
+          replacePath("/");
+        }
+        return;
+      }
+      void syncAuthenticatedRoute();
+    }
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [currentUser, session]);
+
+  if (isAuthLoading) {
+    return (
+      <main className="auth-screen">
+        <AppStateMessage message="Загружаю аккаунт..." />
+      </main>
+    );
+  }
+
+  if (!currentUser) {
+    const routeAuthMode = getRouteAuthMode();
+    if (routeAuthMode) {
+      return (
+        <AuthPage
+          mode={routeAuthMode}
+          onHome={navigateHome}
+          onModeChange={handleAuthModeChange}
+          onAuthenticated={handleAuthenticated}
+        />
+      );
+    }
+
+    return (
+      <main className="public-main">
+        <WelcomePage
+          onLogin={() => handleAuthModeChange("login")}
+          onRegister={() => handleAuthModeChange("register")}
+        />
+      </main>
+    );
+  }
 
   return (
     <Layout>
       <AppSidebar
         activeTab={activeTab}
         currentSession={session}
+        currentUser={currentUser}
         sessions={sessionHistory}
         isLoading={isSessionLoading && sessionHistory.length === 0}
         onNewNegotiation={handleNewNegotiation}
+        onOpenAccount={handleOpenAccount}
+        onOpenHome={handleOpenHome}
         onOpenSession={(nextSession) => void openSessionByPublicId(nextSession.public_id)}
         onOpenTraining={handleOpenTraining}
-        onOpenVocabulary={() => setActiveTab("vocabulary")}
+        onOpenVocabulary={handleOpenVocabulary}
+        onLogout={() => void handleLogout()}
       />
       <main className={session && activeTab === "training" ? "app-main app-main-chat" : "app-main"}>
-        {activeTab === "vocabulary" ? (
+        {activeTab === "account" ? (
+          <AccountPage
+            user={currentUser}
+            onUserChange={setCurrentUser}
+            onLogout={() => void handleLogout()}
+          />
+        ) : activeTab === "vocabulary" ? (
           <VocabularyPage />
+        ) : activeTab === "home" ? (
+          <ScenarioPage key={`home-${scenarioResetKey}`} onSessionReady={handleSessionReady} />
         ) : isSessionLoading ? (
           <AppStateMessage message="Загружаю диалог..." />
         ) : routeError ? (
@@ -208,33 +381,52 @@ function AppStateMessage({ message, details }: { message: string; details?: stri
 interface AppSidebarProps {
   activeTab: AppTab;
   currentSession: DialogueSession | null;
+  currentUser: AccountUser;
   sessions: DialogueSessionSummary[];
   isLoading: boolean;
   onNewNegotiation: () => void;
+  onOpenAccount: () => void;
+  onOpenHome: () => void;
   onOpenSession: (session: DialogueSessionSummary) => void;
   onOpenTraining: () => void;
   onOpenVocabulary: () => void;
+  onLogout: () => void;
 }
 
 function AppSidebar({
   activeTab,
   currentSession,
+  currentUser,
   sessions,
   isLoading,
   onNewNegotiation,
+  onOpenAccount,
+  onOpenHome,
   onOpenSession,
   onOpenTraining,
   onOpenVocabulary,
+  onLogout,
 }: AppSidebarProps) {
   return (
     <aside className="app-sidebar" aria-label="Навигация">
       <div className="sidebar-content">
-        <span className="sidebar-brand" aria-label="Negotiation English">
+        <button className="sidebar-brand sidebar-brand-button" type="button" onClick={onOpenHome}>
           <span className="sidebar-mark">N</span>
           <span className="sidebar-label">Negotiation English</span>
-        </span>
+        </button>
 
         <nav className="sidebar-nav" aria-label="Разделы">
+          <button
+            className={activeTab === "home" ? "sidebar-action active" : "sidebar-action"}
+            type="button"
+            title="Главная"
+            onClick={onOpenHome}
+          >
+            <span className="sidebar-action-icon">
+              <HomeIcon />
+            </span>
+            <span>Главная</span>
+          </button>
           <button className="sidebar-action" type="button" title="Новые переговоры" onClick={onNewNegotiation}>
             <span className="sidebar-action-icon">
               <PlusIcon />
@@ -285,8 +477,49 @@ function AppSidebar({
             <p>Пока пусто</p>
           )}
         </div>
+
+        <div className="sidebar-account">
+          <button
+            className={activeTab === "account" ? "account-button active" : "account-button"}
+            type="button"
+            onClick={onOpenAccount}
+            title="Аккаунт"
+          >
+            <span className="account-avatar">
+              {currentUser.photo_url ? (
+                <img src={resolveBackendUrl(currentUser.photo_url)} alt="" />
+              ) : (
+                avatarInitial(currentUser)
+              )}
+            </span>
+            <span className="account-copy">
+              <strong>{currentUser.name || currentUser.email}</strong>
+              <small>{currentUser.email}</small>
+            </span>
+          </button>
+          <button className="sidebar-action sidebar-logout" type="button" title="Выйти" onClick={onLogout}>
+            <span className="sidebar-action-icon">
+              <LogoutIcon />
+            </span>
+            <span>Выйти</span>
+          </button>
+        </div>
       </div>
     </aside>
+  );
+}
+
+function avatarInitial(user: AccountUser) {
+  return (user.name || user.email || "N").trim().slice(0, 1).toUpperCase();
+}
+
+function HomeIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="m4 11 8-7 8 7" />
+      <path d="M6.5 10.5V20h11v-9.5" />
+      <path d="M10 20v-6h4v6" />
+    </svg>
   );
 }
 
@@ -311,6 +544,16 @@ function BookIcon() {
     <svg aria-hidden="true" viewBox="0 0 24 24">
       <path d="M5 5.5A2.5 2.5 0 0 1 7.5 3H19v16H7.5A2.5 2.5 0 0 0 5 21V5.5z" />
       <path d="M5 17.5A2.5 2.5 0 0 1 7.5 15H19" />
+    </svg>
+  );
+}
+
+function LogoutIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d="M10 6H6.5A2.5 2.5 0 0 0 4 8.5v7A2.5 2.5 0 0 0 6.5 18H10" />
+      <path d="M14 8l4 4-4 4" />
+      <path d="M8 12h10" />
     </svg>
   );
 }

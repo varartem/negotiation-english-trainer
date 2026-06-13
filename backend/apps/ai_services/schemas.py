@@ -51,18 +51,22 @@ GRAPH_STAGE_ORDER = {
 
 
 def parse_json_object(raw_text: str) -> dict[str, Any]:
-    text = _strip_thinking(raw_text.strip())
-    fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, flags=re.DOTALL)
-    if fenced:
-        text = fenced.group(1)
-    else:
-        text = _extract_balanced_object(text)
+    try:
+        text = _strip_thinking(raw_text.strip())
+        fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, flags=re.DOTALL)
+        if fenced:
+            text = fenced.group(1)
+        else:
+            text = _extract_balanced_object(text)
 
-    loaded = _load_json_with_repair(text)
+        loaded = _load_json_with_repair(text)
 
-    if not isinstance(loaded, dict):
-        raise AIServiceError("Модель вернула JSON не в виде объекта.")
-    return loaded
+        if not isinstance(loaded, dict):
+            raise AIServiceError("Модель вернула JSON не в виде объекта.")
+        return loaded
+    except Exception:
+        print(f"\n{'='*50}\nERROR: Failed to parse JSON from AI model.\nRaw text:\n{raw_text}\n{'='*50}\n", flush=True)
+        raise
 
 
 def normalize_scenario(payload: dict[str, Any], counterparty_stance: str) -> dict[str, Any]:

@@ -10,9 +10,16 @@ from .schemas import NEGOTIATION_MOVES
 JSON_SYSTEM_PROMPT = (
     "You are the AI core of a negotiation English training app. "
     "Return only valid JSON that matches the requested schema. "
+    "Do not escape the opening or closing quotes around JSON string values. "
     "Inside JSON string values, escape double quotes or use apostrophes. "
     "Follow the language instructions in the user prompt exactly for every JSON string. "
     "Do not include markdown, comments, prose, or hidden reasoning."
+)
+
+TEXT_SYSTEM_PROMPT = (
+    "You are the AI core of a negotiation English training app. "
+    "Return only the requested plain text. "
+    "Do not include JSON, markdown, comments, labels, quotes, or hidden reasoning."
 )
 
 
@@ -171,8 +178,8 @@ Current graph node:
 Recent dialogue:
 {dialogue_history(session)}
 
-Return this exact JSON object:
-{{"ideal_answer": "ideal learner reply in English"}}
+Return only the ideal learner reply text.
+Do not wrap it in JSON, markdown, quotes, or commentary.
 """.strip()
 
 

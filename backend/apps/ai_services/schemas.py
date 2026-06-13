@@ -52,7 +52,7 @@ GRAPH_STAGE_ORDER = {
 
 def parse_json_object(raw_text: str) -> dict[str, Any]:
     try:
-        text = _strip_thinking(raw_text.strip())
+        text = _repair_escaped_string_delimiters(_strip_thinking(raw_text.strip()))
         fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, flags=re.DOTALL)
         if fenced:
             text = fenced.group(1)
@@ -272,14 +272,63 @@ def _load_json_with_repair(text: str) -> Any:
 
 
 def _json_repair_candidates(text: str) -> list[str]:
-    without_trailing_commas = _remove_trailing_commas(text)
+    with_repaired_delimiters = _repair_escaped_string_delimiters(text)
+    without_trailing_commas = _remove_trailing_commas(with_repaired_delimiters)
     with_escaped_quotes = _escape_unescaped_string_quotes(without_trailing_commas)
     return [
         text,
+        with_repaired_delimiters,
         without_trailing_commas,
         _insert_missing_commas(without_trailing_commas),
         _remove_trailing_commas(_insert_missing_commas(with_escaped_quotes)),
     ]
+
+
+def _repair_escaped_string_delimiters(text: str) -> str:
+    result: list[str] = []
+    in_string = False
+    in_repaired_string = False
+    escaped = False
+    index = 0
+
+    while index < len(text):
+        char = text[index]
+
+        if in_repaired_string:
+            if text.startswith('\\"', index):
+                next_index = _next_non_whitespace_index(text, index + 2)
+                if next_index >= len(text) or text[next_index] in ":,]}":
+                    result.append('"')
+                    index += 2
+                    in_repaired_string = False
+                    continue
+            result.append(char)
+            index += 1
+            continue
+
+        if in_string:
+            result.append(char)
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            index += 1
+            continue
+
+        if text.startswith('\\"', index) and _previous_non_whitespace(result) in {":", "{", "[", ","}:
+            result.append('"')
+            index += 2
+            in_repaired_string = True
+            continue
+
+        result.append(char)
+        if char == '"':
+            in_string = True
+        index += 1
+
+    return "".join(result)
 
 
 def _remove_trailing_commas(text: str) -> str:
@@ -398,6 +447,13 @@ def _next_non_whitespace_index(text: str, start: int) -> int:
     while index < len(text) and text[index].isspace():
         index += 1
     return index
+
+
+def _previous_non_whitespace(chars: list[str]) -> str:
+    for char in reversed(chars):
+        if not char.isspace():
+            return char
+    return ""
 
 
 def _is_json_value_end(char: str) -> bool:

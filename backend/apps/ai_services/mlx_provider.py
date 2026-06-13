@@ -200,10 +200,10 @@ class MlxLLMProvider:
         return reply
 
     def generate_ideal_answer(self, session) -> str:
-        return self._chat_json_text_field(
+        return self._chat_plain_text(
             prompts.ideal_answer_prompt(session),
             max_tokens=IDEAL_ANSWER_MAX_TOKENS,
-            field="ideal_answer",
+            fallback_json_field="ideal_answer",
         )
 
     def translate_vocabulary_phrase(self, phrase: str, context: str = "") -> str:
@@ -249,6 +249,31 @@ class MlxLLMProvider:
                     return partial_field
                 raise
         return normalize_text_field(payload, field)
+
+    def _chat_plain_text(
+        self,
+        user_prompt: str,
+        *,
+        max_tokens: int,
+        fallback_json_field: str | None = None,
+    ) -> str:
+        messages = [
+            {"role": "system", "content": prompts.TEXT_SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt},
+        ]
+        raw = self._generate(messages, max_tokens=max_tokens)
+
+        if fallback_json_field and _looks_like_json_response(raw):
+            partial_field = _json_string_field_prefix(raw, fallback_json_field).strip()
+            if partial_field:
+                return partial_field
+            try:
+                payload = parse_json_object(raw)
+                return normalize_text_field(payload, fallback_json_field)
+            except AIServiceError:
+                pass
+
+        return _clean_plain_text_response(raw)
 
     def _ensure_json_with_retries(
         self,
@@ -403,24 +428,42 @@ class MlxLLMProvider:
 def _json_string_field_prefix(text: str, field: str) -> str:
     key = f'"{field}"'
     key_index = text.find(key)
+    key_len = len(key)
     if key_index == -1:
-        return ""
+        key = f'\\"{field}\\"'
+        key_index = text.find(key)
+        key_len = len(key)
+        if key_index == -1:
+            return ""
 
-    colon_index = text.find(":", key_index + len(key))
+    colon_index = text.find(":", key_index + key_len)
     if colon_index == -1:
         return ""
 
     index = colon_index + 1
     while index < len(text) and text[index].isspace():
         index += 1
-    if index >= len(text) or text[index] != '"':
+    if index >= len(text):
         return ""
 
-    index += 1
+    escaped_delimiter = text.startswith('\\"', index)
+    if escaped_delimiter:
+        index += 2
+    elif text[index] == '"':
+        index += 1
+    else:
+        return ""
+
     chars: list[str] = []
     while index < len(text):
         char = text[index]
-        if char == '"':
+        if escaped_delimiter and text.startswith('\\"', index):
+            next_index = index + 2
+            while next_index < len(text) and text[next_index].isspace():
+                next_index += 1
+            if next_index >= len(text) or text[next_index] in ",]}":
+                break
+        if not escaped_delimiter and char == '"':
             break
         if char != "\\":
             chars.append(char)
@@ -461,6 +504,25 @@ def _json_string_field_prefix(text: str, field: str) -> str:
             break
 
     return "".join(chars)
+
+
+def _clean_plain_text_response(text: str) -> str:
+    cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL | re.IGNORECASE).strip()
+    fenced = re.search(r"```(?:text)?\s*(.*?)\s*```", cleaned, flags=re.DOTALL | re.IGNORECASE)
+    if fenced:
+        cleaned = fenced.group(1).strip()
+
+    if len(cleaned) >= 2 and cleaned[0] == cleaned[-1] and cleaned[0] in {'"', "'"}:
+        cleaned = cleaned[1:-1].strip()
+
+    if not cleaned:
+        raise AIServiceError("Модель не вернула текст.")
+
+    return cleaned
+
+
+def _looks_like_json_response(text: str) -> bool:
+    return "{" in text
 
 
 def _json_repair_token_budget(max_tokens: int, error: AIServiceError) -> int:

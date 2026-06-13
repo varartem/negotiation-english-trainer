@@ -57,12 +57,17 @@ function progressionNodes(graph: GraphJson) {
 }
 
 export default function GraphView({ graph, currentNodeId }: GraphViewProps) {
-  const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+
+  const selectedNode = useMemo(() => {
+    return graph.nodes.find((node) => node.id === selectedNodeId) ?? null;
+  }, [graph.nodes, selectedNodeId]);
 
   const nodes = useMemo<Node[]>(() => {
     return graph.nodes.map((node, index) => {
       const order = nodeOrder[node.type] ?? index;
       const isCurrent = node.id === currentNodeId;
+      const isSelected = node.id === selectedNodeId;
       const isSuccess = node.type === "success";
       const isDeadEnd = node.type === "dead_end";
       const x = isSuccess ? SUCCESS_NODE_X : isDeadEnd ? DEAD_END_NODE_X : MAIN_NODE_X;
@@ -74,13 +79,14 @@ export default function GraphView({ graph, currentNodeId }: GraphViewProps) {
         className: [
           "flow-node",
           isCurrent ? "flow-node-current" : "",
+          isSelected ? "flow-node-selected" : "",
           !isCurrent ? "flow-node-muted" : "",
           isSuccess ? "flow-node-success" : "",
           isDeadEnd ? "flow-node-dead" : "",
         ].join(" "),
       };
     });
-  }, [graph.nodes, currentNodeId]);
+  }, [graph.nodes, currentNodeId, selectedNodeId]);
 
   const edges = useMemo<Edge[]>(() => {
     const path = progressionNodes(graph);
@@ -120,8 +126,9 @@ export default function GraphView({ graph, currentNodeId }: GraphViewProps) {
           nodesConnectable={false}
           nodesDraggable={false}
           proOptions={{ hideAttribution: true }}
+          onPaneClick={() => setSelectedNodeId(null)}
           onNodeClick={(_, node) => {
-            setSelectedNode(graph.nodes.find((item) => item.id === node.id) ?? null);
+            setSelectedNodeId((currentId) => (currentId === node.id ? null : node.id));
           }}
         >
           <Background color="#eef1f4" gap={24} size={0.8} />
@@ -130,15 +137,28 @@ export default function GraphView({ graph, currentNodeId }: GraphViewProps) {
 
       {selectedNode ? (
         <div className="node-details">
-          <h3>{displayNodeLabel(selectedNode)}</h3>
+          <div className="node-details-header">
+            <h3>{displayNodeLabel(selectedNode)}</h3>
+            <button
+              className="node-details-back"
+              type="button"
+              onClick={() => setSelectedNodeId(null)}
+              title="Вернуться к общей аналитике"
+            >
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M12.5 5 7.5 10l5 5" />
+              </svg>
+              <span>К общей аналитике</span>
+            </button>
+          </div>
           <p>{selectedNode.tutor_task}</p>
           <dl>
             <div>
-              <dt>Настрой</dt>
+              <dt>Настрой на этом этапе</dt>
               <dd>{selectedNode.counterparty_mood}</dd>
             </div>
             <div>
-              <dt>Намерение</dt>
+              <dt>Намерение на этом этапе</dt>
               <dd>{selectedNode.counterparty_intent}</dd>
             </div>
           </dl>

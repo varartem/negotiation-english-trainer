@@ -1309,6 +1309,13 @@ button svg {
   opacity: 0.48;
 }
 
+.flow-node-selected {
+  box-shadow:
+    0 0 0 2px rgba(17, 17, 17, 0.16),
+    0 7px 18px rgba(0, 0, 0, 0.1);
+  opacity: 1;
+}
+
 .flow-node-current {
   background: #111111;
   color: #ffffff;
@@ -1333,6 +1340,14 @@ button svg {
   background: transparent;
 }
 
+.node-details-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
 .node-details h3,
 .feedback-list h3,
 .better-version h3,
@@ -1341,6 +1356,41 @@ button svg {
   color: #222222;
   font-size: 14px;
   font-weight: 600;
+}
+
+.node-details-header h3 {
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.node-details-back {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #f7f7f8;
+  color: #333333;
+  padding: 5px 8px 5px 6px;
+  font-size: 12px;
+  font-weight: 560;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.node-details-back svg {
+  width: 15px;
+  height: 15px;
+}
+
+.node-details-back:hover {
+  border-color: var(--line-strong);
+  background: #ececf1;
+  color: #111111;
 }
 
 .node-details dl {

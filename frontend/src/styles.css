@@ -528,6 +528,15 @@ button svg {
   text-align: center;
 }
 
+.welcome-title {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin: 0;
+  column-gap: 0.22em;
+  row-gap: 0.08em;
+}
+
 .welcome-content h1 {
   margin: 0;
   color: var(--ink);
@@ -535,6 +544,83 @@ button svg {
   font-weight: 660;
   line-height: 1.04;
   letter-spacing: 0;
+}
+
+.welcome-word {
+  display: inline-block;
+  opacity: 0;
+  filter: blur(10px);
+  transform: translateY(16px);
+  animation: welcomeWordIn 540ms cubic-bezier(0.19, 1, 0.22, 1) forwards;
+}
+
+.welcome-word:nth-child(2) {
+  animation-delay: 105ms;
+}
+
+.welcome-word:nth-child(3) {
+  animation-delay: 210ms;
+}
+
+.welcome-word:nth-child(4) {
+  animation-delay: 315ms;
+}
+
+.welcome-word-accent {
+  position: relative;
+  font-weight: 760;
+}
+
+.welcome-word-accent::after {
+  position: absolute;
+  right: -0.03em;
+  bottom: -0.23em;
+  left: -0.03em;
+  height: 0.27em;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 120 32' preserveAspectRatio='none' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 18 C15 7 45 7 60 18 S105 29 120 18' stroke='%23fa0046' stroke-width='14' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-position: 0 50%;
+  background-repeat: repeat-x;
+  background-size: 32px 100%;
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  animation:
+    welcomeUnderlineFade 420ms ease 420ms forwards,
+    welcomeUnderlineCrawl 780ms linear 420ms infinite;
+}
+
+@keyframes welcomeWordIn {
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+}
+
+@keyframes welcomeUnderlineFade {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes welcomeUnderlineCrawl {
+  to {
+    background-position: 32px 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcome-word {
+    opacity: 1;
+    filter: none;
+    transform: none;
+    animation: none;
+  }
+
+  .welcome-word-accent::after {
+    opacity: 1;
+    animation: none;
+  }
 }
 
 .welcome-actions {

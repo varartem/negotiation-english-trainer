@@ -8,7 +8,12 @@ export default function WelcomePage({ onLogin, onRegister, onStart }: WelcomePag
   return (
     <section className="welcome-page">
       <div className="welcome-content">
-        <h1>Практикуй переговорный английский эффективно</h1>
+        <h1 className="welcome-title" aria-label="Практикуй переговорный английский эффективно">
+          <span className="welcome-word">Практикуй</span>
+          <span className="welcome-word welcome-word-accent">переговорный</span>
+          <span className="welcome-word">английский</span>
+          <span className="welcome-word">эффективно</span>
+        </h1>
         {onStart ? (
           <button className="start-primary" type="button" onClick={onStart}>
             Начать тренировку
